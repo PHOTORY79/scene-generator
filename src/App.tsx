@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
 import {
   Upload, Camera, Film, Smile, Zap, CheckCircle,
-  Settings, Download, RefreshCw, ChevronRight, Image as ImageIcon, Send
+  Settings, Download, RefreshCw, ChevronRight, Image as ImageIcon, Send, Sparkles
 } from 'lucide-react';
-import { initialState } from './types/sceneGenerator';
+import { initialState, GENRE_PRESETS } from './types/sceneGenerator';
 import type { SceneGeneratorState, UsageStats } from './types/sceneGenerator';
 import { determineLogicMode } from './utils/determineLogicMode';
 import { PreviewGrid } from './components/PreviewGrid';
@@ -60,6 +60,9 @@ function App() {
   };
 
   const toggleCategory = (cat: 'angle' | 'shot' | 'expression') => {
+    // Disabled when Smart Layout is enabled
+    if (state.smartLayoutEnabled) return;
+
     setState(prev => {
       const newCats = { ...prev.selectedCategories, [cat]: !prev.selectedCategories[cat] };
       return {
@@ -68,6 +71,31 @@ function App() {
         logicMode: determineLogicMode(newCats)
       };
     });
+  };
+
+  const toggleSmartLayout = () => {
+    setState(prev => {
+      if (prev.smartLayoutEnabled) {
+        // Turning off Smart Layout
+        return {
+          ...prev,
+          smartLayoutEnabled: false,
+          logicMode: determineLogicMode(prev.selectedCategories)
+        };
+      } else {
+        // Turning on Smart Layout - disable all categories
+        return {
+          ...prev,
+          smartLayoutEnabled: true,
+          selectedCategories: { angle: false, shot: false, expression: false },
+          logicMode: 'CINEMATIC'
+        };
+      }
+    });
+  };
+
+  const selectGenre = (genreId: string) => {
+    setState(prev => ({ ...prev, selectedGenre: genreId }));
   };
 
   const handleContextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -136,10 +164,11 @@ function App() {
         state.referenceImage,
         state.logicMode,
         Object.keys(state.selectedCategories).filter(k => state.selectedCategories[k as keyof typeof state.selectedCategories]),
-        state.contextPrompt,
+        state.smartLayoutEnabled ? '' : state.contextPrompt, // No context prompt in Smart Layout mode
         width,
         height,
-        ratio
+        ratio,
+        state.smartLayoutEnabled ? state.selectedGenre : undefined // Pass genre for CINEMATIC mode
       );
 
       setState(prev => ({
@@ -250,36 +279,58 @@ function App() {
 
       {/* Controls */}
       <div className="space-y-6">
+        {/* Category Selection */}
         <div className="bg-gray-800/50 p-6 rounded-2xl border border-white/10">
           <h3 className="text-lg font-semibold text-white mb-4">Select Variations</h3>
           <div className="grid grid-cols-1 gap-3">
             <button
               onClick={() => toggleCategory('angle')}
-              className={`flex items-center justify-between p-4 rounded-xl border transition-all ${state.selectedCategories.angle ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-gray-700/30 border-gray-600 text-gray-400 hover:bg-gray-700'}`}
+              disabled={state.smartLayoutEnabled}
+              className={`flex items-center justify-between p-4 rounded-xl border transition-all ${state.smartLayoutEnabled ? 'opacity-40 cursor-not-allowed' : ''} ${state.selectedCategories.angle ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-gray-700/30 border-gray-600 text-gray-400 hover:bg-gray-700'}`}
             >
               <div className="flex items-center gap-3"><Camera size={20} /> <span>Camera Angle</span></div>
               {state.selectedCategories.angle && <CheckCircle size={18} />}
             </button>
             <button
               onClick={() => toggleCategory('shot')}
-              className={`flex items-center justify-between p-4 rounded-xl border transition-all ${state.selectedCategories.shot ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-gray-700/30 border-gray-600 text-gray-400 hover:bg-gray-700'}`}
+              disabled={state.smartLayoutEnabled}
+              className={`flex items-center justify-between p-4 rounded-xl border transition-all ${state.smartLayoutEnabled ? 'opacity-40 cursor-not-allowed' : ''} ${state.selectedCategories.shot ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-gray-700/30 border-gray-600 text-gray-400 hover:bg-gray-700'}`}
             >
               <div className="flex items-center gap-3"><Film size={20} /> <span>Shot Distance</span></div>
               {state.selectedCategories.shot && <CheckCircle size={18} />}
             </button>
             <button
               onClick={() => toggleCategory('expression')}
-              className={`flex items-center justify-between p-4 rounded-xl border transition-all ${state.selectedCategories.expression ? 'bg-pink-600/20 border-pink-500 text-pink-300' : 'bg-gray-700/30 border-gray-600 text-gray-400 hover:bg-gray-700'}`}
+              disabled={state.smartLayoutEnabled}
+              className={`flex items-center justify-between p-4 rounded-xl border transition-all ${state.smartLayoutEnabled ? 'opacity-40 cursor-not-allowed' : ''} ${state.selectedCategories.expression ? 'bg-pink-600/20 border-pink-500 text-pink-300' : 'bg-gray-700/30 border-gray-600 text-gray-400 hover:bg-gray-700'}`}
             >
               <div className="flex items-center gap-3"><Smile size={20} /> <span>Expression</span></div>
               {state.selectedCategories.expression && <CheckCircle size={18} />}
             </button>
           </div>
 
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 h-px bg-gray-600"></div>
+            <span className="text-xs text-gray-500">또는</span>
+            <div className="flex-1 h-px bg-gray-600"></div>
+          </div>
+
+          {/* Smart Layout Toggle */}
+          <button
+            onClick={toggleSmartLayout}
+            disabled={Object.values(state.selectedCategories).some(v => v)}
+            className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${Object.values(state.selectedCategories).some(v => v) ? 'opacity-40 cursor-not-allowed' : ''} ${state.smartLayoutEnabled ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500 text-amber-300' : 'bg-gray-700/30 border-gray-600 text-gray-400 hover:bg-gray-700'}`}
+          >
+            <div className="flex items-center gap-3"><Sparkles size={20} /> <span>Smart Layout (스마트 레이아웃)</span></div>
+            {state.smartLayoutEnabled && <CheckCircle size={18} />}
+          </button>
+
+          {/* Logic Mode Display */}
           <div className="mt-6 p-4 bg-black/20 rounded-lg">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-400">Logic Mode:</span>
-              <span className={`text-sm font-bold px-2 py-1 rounded ${state.logicMode === 'DYNAMIC' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' :
+              <span className={`text-sm font-bold px-2 py-1 rounded ${state.logicMode === 'CINEMATIC' ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black' : state.logicMode === 'DYNAMIC' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' :
                 state.logicMode === 'MATRIX' ? 'bg-blue-500 text-white' : 'bg-gray-600 text-white'
                 }`}>{state.logicMode}</span>
             </div>
@@ -287,20 +338,54 @@ function App() {
               {state.logicMode === 'LINEAR' && "Explores 9 presets of the single selected category."}
               {state.logicMode === 'MATRIX' && "Combines top 3 traits from two categories (3x3)."}
               {state.logicMode === 'DYNAMIC' && "AI creatively mixes all three for maximum cinematic diversity."}
+              {state.logicMode === 'CINEMATIC' && "AI auto-generates fixed 9-shot cinematic grid with genre styling."}
             </p>
           </div>
         </div>
 
-        <div className="bg-gray-800/50 p-6 rounded-2xl border border-white/10">
-          <h3 className="text-lg font-semibold text-white mb-2">Context Prompt</h3>
-          <textarea
-            className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            placeholder="e.g. Cyberpunk detective in rainy neon-lit alley..."
-            rows={3}
-            value={state.contextPrompt}
-            onChange={handleContextChange}
-          />
-        </div>
+        {/* Genre Preset Selector (Only shown when Smart Layout is enabled) */}
+        {state.smartLayoutEnabled && (
+          <div className="bg-gray-800/50 p-6 rounded-2xl border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-4">Select Genre</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {GENRE_PRESETS.map(genre => (
+                <button
+                  key={genre.id}
+                  onClick={() => selectGenre(genre.id)}
+                  className={`relative p-4 rounded-xl border-2 transition-all overflow-hidden group ${state.selectedGenre === genre.id ? 'border-white ring-2 ring-white/30' : 'border-transparent hover:border-gray-500'}`}
+                >
+                  {/* Background gradient */}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${genre.cardColor} opacity-80 group-hover:opacity-100 transition-opacity`}></div>
+                  {/* Content */}
+                  <div className="relative z-10 text-center">
+                    <p className="font-bold text-white text-sm">{genre.name_en}</p>
+                    <p className="text-xs text-white/70 mt-1">{genre.name_ko}</p>
+                  </div>
+                  {/* Selected indicator */}
+                  {state.selectedGenre === genre.id && (
+                    <div className="absolute top-2 right-2 z-10">
+                      <CheckCircle size={16} className="text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Context Prompt (Hidden in Smart Layout mode) */}
+        {!state.smartLayoutEnabled && (
+          <div className="bg-gray-800/50 p-6 rounded-2xl border border-white/10">
+            <h3 className="text-lg font-semibold text-white mb-2">Context Prompt</h3>
+            <textarea
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              placeholder="e.g. Cyberpunk detective in rainy neon-lit alley..."
+              rows={3}
+              value={state.contextPrompt}
+              onChange={handleContextChange}
+            />
+          </div>
+        )}
 
         {/* Original aspect ratio is auto-detected and shown */}
         <div className="bg-gray-800/50 p-4 rounded-xl border border-white/10 text-center">
@@ -311,13 +396,15 @@ function App() {
 
         <button
           onClick={handleGeneratePreview}
-          disabled={state.isGeneratingPreview || Object.values(state.selectedCategories).every(v => !v)}
-          className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${Object.values(state.selectedCategories).some(v => v) && !state.isGeneratingPreview
-            ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:scale-[1.02] shadow-lg shadow-blue-500/25'
+          disabled={state.isGeneratingPreview || (!state.smartLayoutEnabled && Object.values(state.selectedCategories).every(v => !v))}
+          className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${(state.smartLayoutEnabled || Object.values(state.selectedCategories).some(v => v)) && !state.isGeneratingPreview
+            ? state.smartLayoutEnabled
+              ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:scale-[1.02] shadow-lg shadow-orange-500/25 text-black'
+              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:scale-[1.02] shadow-lg shadow-blue-500/25'
             : 'bg-gray-700 text-gray-500 cursor-not-allowed'
             }`}
         >
-          {state.isGeneratingPreview ? <RefreshCw className="animate-spin" /> : <Zap fill="currentColor" />}
+          {state.isGeneratingPreview ? <RefreshCw className="animate-spin" /> : state.smartLayoutEnabled ? <Sparkles /> : <Zap fill="currentColor" />}
           {state.isGeneratingPreview ? 'Generating Preview...' : 'Generate 3x3 Preview (1 Credit)'}
         </button>
       </div>

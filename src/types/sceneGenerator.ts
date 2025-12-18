@@ -1,6 +1,74 @@
-export type LogicMode = 'LINEAR' | 'MATRIX' | 'DYNAMIC';
+export type LogicMode = 'LINEAR' | 'MATRIX' | 'DYNAMIC' | 'CINEMATIC';
 export type Resolution = '1K' | '2K' | '4K';
 export type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9';
+
+// Genre Preset for Smart Layout (CINEMATIC mode)
+export interface GenrePreset {
+    id: string;
+    name_ko: string;
+    name_en: string;
+    color_grading: string;
+    lighting: string;
+    mood: string;
+    cardColor: string; // For UI color card display
+}
+
+export const GENRE_PRESETS: GenrePreset[] = [
+    {
+        id: "neutral",
+        name_ko: "뉴트럴",
+        name_en: "Neutral",
+        color_grading: "natural colors, balanced exposure",
+        lighting: "natural ambient lighting",
+        mood: "clean, versatile, documentary-like",
+        cardColor: "from-gray-500 to-gray-600"
+    },
+    {
+        id: "cinematic",
+        name_ko: "시네마틱",
+        name_en: "Cinematic",
+        color_grading: "teal and orange, rich contrast",
+        lighting: "dramatic three-point lighting",
+        mood: "hollywood blockbuster feel",
+        cardColor: "from-amber-500 to-orange-600"
+    },
+    {
+        id: "noir",
+        name_ko: "느와르",
+        name_en: "Noir",
+        color_grading: "high contrast black and white, deep shadows",
+        lighting: "hard side lighting, venetian blind shadows",
+        mood: "mysterious, tension, classic crime",
+        cardColor: "from-slate-800 to-black"
+    },
+    {
+        id: "romantic",
+        name_ko: "로맨틱",
+        name_en: "Romantic",
+        color_grading: "warm tones, soft highlights, gentle glow",
+        lighting: "golden hour, backlight, soft diffused",
+        mood: "intimate, warm, dreamy",
+        cardColor: "from-pink-400 to-rose-500"
+    },
+    {
+        id: "horror",
+        name_ko: "호러",
+        name_en: "Horror",
+        color_grading: "desaturated, green/blue tint, crushed blacks",
+        lighting: "underlight, unstable flickering, harsh shadows",
+        mood: "dread, unease, supernatural",
+        cardColor: "from-emerald-900 to-gray-900"
+    },
+    {
+        id: "scifi",
+        name_ko: "SF",
+        name_en: "Sci-Fi",
+        color_grading: "cyan and orange, neon accents, cool tones",
+        lighting: "rim light, artificial glow, lens flares",
+        mood: "futuristic, technological, cold",
+        cardColor: "from-cyan-500 to-blue-600"
+    }
+];
 
 export interface CellMetadata {
     cell: number;
@@ -22,6 +90,10 @@ export interface SceneGeneratorState {
     };
     logicMode: LogicMode;
     contextPrompt: string;
+
+    // Smart Layout (CINEMATIC mode)
+    smartLayoutEnabled: boolean;
+    selectedGenre: string; // Genre preset ID
 
     // Step 3: Preview
     isGeneratingPreview: boolean;
@@ -50,6 +122,8 @@ export const initialState: SceneGeneratorState = {
     selectedCategories: { angle: false, shot: false, expression: false },
     logicMode: 'LINEAR',
     contextPrompt: '',
+    smartLayoutEnabled: false,
+    selectedGenre: 'cinematic', // Default: Cinematic
     isGeneratingPreview: false,
     previewGridUrl: null,
     gridMetadata: [],
