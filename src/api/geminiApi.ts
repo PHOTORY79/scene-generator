@@ -273,8 +273,8 @@ export async function generatePreview(
 }
 
 export async function generateFinal(
-    previewUrl: string, // Kept for reference, but we use strict inputs now
-    cellIndex: number,
+    _previewUrl: string, // Kept for reference, but we use strict inputs now
+    _cellIndex: number,
     resolution: string,
     aspectRatio: string,
     originalImage: File,
