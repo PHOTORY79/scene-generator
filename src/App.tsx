@@ -283,8 +283,17 @@ function App() {
   };
 
   const handleGenerateVideo = async () => {
-    // Priority: Uploaded Custom > Modified Image > Final Grid Image (finalImageUrl) > Preview Grid (previewGridUrl)
-    const sourceImage = state.uploadedForVideo || state.modifiedImageUrl || state.finalImageUrl || state.previewGridUrl;
+    // Determine Source Image based on User Selection and State Priority
+    let sourceImage = null;
+
+    if (state.uploadedForVideo) {
+      sourceImage = state.uploadedForVideo;
+    } else if (state.useGridAsSource && state.previewGridUrl) {
+      sourceImage = state.previewGridUrl; // Explicitly requested 9-Grid
+    } else {
+      // Default Fallback: Modified > Final > Preview
+      sourceImage = state.modifiedImageUrl || state.finalImageUrl || state.previewGridUrl;
+    }
 
     if (!sourceImage) {
       alert("No image available for video generation. Please generate a grid or upload an image.");
