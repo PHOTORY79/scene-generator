@@ -398,3 +398,74 @@ export async function generateFinal(
     alert(`Generation failed. Details: ${errorMsg}`);
     throw lastError || new Error("All models failed");
 }
+
+export async function modifyImage(
+    sourceImageUrl: string,
+    modificationPrompt: string
+): Promise<string> {
+    const modelsToTry = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
+    let lastError = null;
+
+    // Convert source URL to base64 Part
+    // If it's a blob URL or remote URL, we need to fetch it first
+    let imagePart;
+    try {
+        const response = await fetch(sourceImageUrl);
+        const blob = await response.blob();
+
+        // Convert blob to base64
+        const reader = new FileReader();
+        const base64Promise = new Promise<{ inlineData: { data: string; mimeType: string } }>((resolve, reject) => {
+            reader.onloadend = () => {
+                const base64Data = (reader.result as string).split(',')[1];
+                resolve({
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: blob.type
+                    }
+                });
+            };
+            reader.onerror = reject;
+        });
+        reader.readAsDataURL(blob);
+        imagePart = await base64Promise;
+
+    } catch (e) {
+        console.error("Failed to fetch source image:", e);
+        throw new Error("Failed to process source image for modification");
+    }
+
+    const prompt = `[IMAGE MODIFICATION TASK]
+    Input Image: The provided image.
+    Instruction: ${modificationPrompt}
+    
+    [REQUIREMENTS]
+    - MODIFY ONLY what is requested in the instruction.
+    - PRESERVE the original composition, angle, character identity, and style strictly.
+    - Do NOT reimagine the whole scene unless asked.
+    - Photorealistic quality.
+    - Return the modified image.`;
+
+    for (const modelName of modelsToTry) {
+        try {
+            console.log(`[Gemini API] Modifying Image with model: ${modelName}`);
+            const model = genAI.getGenerativeModel({ model: modelName });
+
+            const result = await model.generateContent([
+                imagePart,
+                prompt
+            ]);
+            const response = await result.response;
+
+            return await extractImageFromResponse(response);
+
+        } catch (err: any) {
+            console.warn(`[Gemini API] Model ${modelName} failed:`, err);
+            lastError = err;
+        }
+    }
+
+    const errorMsg = lastError?.message || "All models failed";
+    alert(`Modification failed. Details: ${errorMsg}`);
+    throw lastError || new Error("All models failed");
+}

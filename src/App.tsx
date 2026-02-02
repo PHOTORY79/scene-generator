@@ -7,7 +7,8 @@ import { initialState, GENRE_PRESETS } from './types/sceneGenerator';
 import type { SceneGeneratorState, UsageStats } from './types/sceneGenerator';
 import { determineLogicMode } from './utils/determineLogicMode';
 import { PreviewGrid } from './components/PreviewGrid';
-import { generatePreview, generateFinal } from './api/geminiApi';
+import { generatePreview, generateFinal, modifyImage } from './api/geminiApi';
+import { generateVideo } from './api/viduApi';
 
 function App() {
   const [state, setState] = useState<SceneGeneratorState>(initialState);
@@ -258,6 +259,49 @@ function App() {
 
     } catch (err: any) {
       setState(prev => ({ ...prev, isGeneratingFinal: false, error: err.message }));
+    }
+  };
+
+  const handleModifyImage = async () => {
+    // Determine which image to modify: the Modified one if it exists (for iterative edits) or the Final one
+    const sourceImage = state.modifiedImageUrl || state.finalImageUrl;
+    if (!sourceImage || !state.modificationPrompt.trim()) return;
+
+    setState(prev => ({ ...prev, isModifying: true }));
+
+    try {
+      const newImageUrl = await modifyImage(sourceImage, state.modificationPrompt);
+      setState(prev => ({
+        ...prev,
+        isModifying: false,
+        modifiedImageUrl: newImageUrl,
+        modificationPrompt: '' // Clear prompt after success? Or keep it? Let's clear it.
+      }));
+    } catch (err: any) {
+      setState(prev => ({ ...prev, isModifying: false, error: err.message }));
+    }
+  };
+
+  const handleGenerateVideo = async () => {
+    const sourceImage = state.modifiedImageUrl || state.finalImageUrl;
+    if (!sourceImage) return;
+
+    setState(prev => ({ ...prev, isGeneratingVideo: true }));
+
+    try {
+      // Use modification prompt or context prompt as base, or default
+      const prompt = state.modificationPrompt || state.contextPrompt || "Cinematic movement, high quality";
+
+      const videoUrl = await generateVideo(sourceImage, prompt);
+
+      setState(prev => ({
+        ...prev,
+        isGeneratingVideo: false,
+        videoUrl: videoUrl
+      }));
+    } catch (err: any) {
+      setState(prev => ({ ...prev, isGeneratingVideo: false, error: err.message }));
+      alert(`Video Generation Error: ${err.message}`);
     }
   };
 
@@ -564,12 +608,29 @@ function App() {
   );
 
   const renderResult = () => (
-    <div className="text-center space-y-8 animate-fade-in">
+    <div className="text-center space-y-8 animate-fade-in relative z-10 pb-20">
       <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400">
         Masterpiece Created!
       </h2>
+
+      {/* Main Image Display (Final or Modified) */}
       <div className="relative max-w-4xl mx-auto rounded-xl overflow-hidden shadow-2xl border border-gray-700 group">
-        <img src={state.finalImageUrl!} alt="Final" className="w-full" />
+        <img
+          src={state.modifiedImageUrl || state.finalImageUrl!}
+          alt="Final"
+          className="w-full"
+        />
+
+        {/* Undo/Comparison if Modified */}
+        {state.modifiedImageUrl && (
+          <button
+            onClick={() => setState(prev => ({ ...prev, modifiedImageUrl: null }))}
+            className="absolute top-4 right-4 bg-black/60 hover:bg-black/80 text-white px-3 py-1 rounded-full text-sm backdrop-blur-md border border-white/20 transition-all"
+          >
+            ↺ Revert to Original
+          </button>
+        )}
+
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-6 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between items-end">
           <div className="text-left">
             <p className="text-white font-bold">{state.outputResolution} • {state.outputAspectRatio}</p>
@@ -578,7 +639,7 @@ function App() {
             <button
               onClick={() => {
                 const link = document.createElement('a');
-                link.href = state.finalImageUrl!;
+                link.href = state.modifiedImageUrl || state.finalImageUrl!;
                 link.download = `scene-generator-${Date.now()}.png`;
                 document.body.appendChild(link);
                 link.click();
@@ -592,10 +653,9 @@ function App() {
               onClick={() => {
                 const payload = {
                   type: 'SCENE_GENERATED',
-                  image: state.finalImageUrl,
+                  image: state.modifiedImageUrl || state.finalImageUrl,
                   stats: stats
                 };
-                // Send to parent (iframe) or opener (popup)
                 if (window.opener) {
                   window.opener.postMessage(payload, '*');
                 }
@@ -610,9 +670,87 @@ function App() {
         </div>
       </div>
 
-      <div className="flex justify-center gap-4">
+      {/* Modification Section */}
+      <div className="max-w-2xl mx-auto bg-gray-800/50 p-6 rounded-2xl border border-white/10 mt-8">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <Sparkles size={20} className="text-yellow-400" />
+          Modify Image (AI 수정)
+        </h3>
+        <div className="flex flex-col gap-3">
+          <textarea
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+            placeholder="e.g. Change background to sunset, Add rain, Make lighting darker..."
+            rows={2}
+            value={state.modificationPrompt}
+            onChange={(e) => setState(prev => ({ ...prev, modificationPrompt: e.target.value }))}
+          />
+          <button
+            onClick={handleModifyImage}
+            disabled={state.isModifying || !state.modificationPrompt.trim()}
+            className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all ${!state.isModifying && state.modificationPrompt.trim()
+              ? 'bg-gradient-to-r from-yellow-500 to-amber-600 hover:scale-[1.02] text-black shadow-lg shadow-amber-500/20'
+              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              }`}
+          >
+            {state.isModifying ? <RefreshCw className="animate-spin" /> : <Sparkles size={18} />}
+            {state.isModifying ? 'Modifying...' : 'Apply Modification (1 Credit)'}
+          </button>
+        </div>
+      </div>
+
+      {/* Video Generation Section */}
+      <div className="max-w-2xl mx-auto bg-gray-800/50 p-6 rounded-2xl border border-white/10 mt-8">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <Film size={20} className="text-purple-400" />
+          Generate Video (VIDU)
+        </h3>
+
+        {!state.videoUrl ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-gray-400">
+              Create a 4-second video animation from your image.
+            </p>
+            <button
+              onClick={handleGenerateVideo}
+              disabled={state.isGeneratingVideo}
+              className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all ${!state.isGeneratingVideo
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:scale-[1.02] text-white shadow-lg shadow-purple-500/20'
+                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                }`}
+            >
+              {state.isGeneratingVideo ? <RefreshCw className="animate-spin" /> : <Film size={18} />}
+              {state.isGeneratingVideo ? 'Generating Video (approx 30s)...' : 'Generate Video (Credits Apply)'}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-xl overflow-hidden border border-purple-500/30 shadow-lg shadow-purple-900/20">
+              <video
+                src={state.videoUrl}
+                controls
+                className="w-full"
+                poster={state.modifiedImageUrl || state.finalImageUrl || undefined}
+              >
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div className="flex justify-center">
+              <a
+                href={state.videoUrl}
+                download={`scene-video-${Date.now()}.mp4`}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-sm flex items-center gap-2"
+                target="_blank"
+              >
+                <Download size={16} /> Download Video
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-center gap-4 mt-8">
         <button
-          onClick={() => setState(prev => ({ ...prev, finalImageUrl: null, isGeneratingFinal: false }))}
+          onClick={() => setState(prev => ({ ...prev, finalImageUrl: null, modifiedImageUrl: null, videoUrl: null, isGeneratingFinal: false, isModifying: false, isGeneratingVideo: false }))}
           className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium text-white flex items-center gap-2"
         >
           <ChevronRight className="rotate-180" size={18} /> Back to Selection

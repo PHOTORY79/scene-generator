@@ -115,6 +115,15 @@ export interface SceneGeneratorState {
     isGeneratingFinal: boolean;
     finalImageUrl: string | null;
 
+    // Image Modification
+    isModifying: boolean;
+    modificationPrompt: string;
+    modifiedImageUrl: string | null;
+
+    // Video Generation (VIDU)
+    isGeneratingVideo: boolean;
+    videoUrl: string | null;
+
     // Error handling
     error: string | null;
 }
@@ -137,6 +146,14 @@ export const initialState: SceneGeneratorState = {
     outputAspectRatio: '16:9',
     isGeneratingFinal: false,
     finalImageUrl: null,
+
+    isModifying: false,
+    modificationPrompt: '',
+    modifiedImageUrl: null,
+
+    isGeneratingVideo: false,
+    videoUrl: null,
+
     error: null,
 };
 
