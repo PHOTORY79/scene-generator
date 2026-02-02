@@ -153,6 +153,11 @@ export const initialState: SceneGeneratorState = {
 
     isGeneratingVideo: false,
     videoUrl: null,
+    videoPrompt: '',
+    uploadedForVideo: null,
+    videoDuration: 5,
+    videoResolution: '1080p',
+    videoModel: 'viduq3-pro',
 
     error: null,
 };

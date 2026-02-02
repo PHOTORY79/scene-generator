@@ -698,54 +698,136 @@ function App() {
         </div>
       </div>
 
-      {/* Video Generation Section */}
+      {/* Video Generation Section (Vidu Q3 Studio) */}
       <div className="max-w-2xl mx-auto bg-gray-800/50 p-6 rounded-2xl border border-white/10 mt-8">
         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
           <Film size={20} className="text-purple-400" />
           Generate Video (VIDU)
         </h3>
+        <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+          <h2 className="text-xl font-bold mb-4 text-purple-400 flex items-center">
+            <span className="mr-2">🎥</span> Video Studio (Vidu Q3 Pro)
+          </h2>
 
-        {!state.videoUrl ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-gray-400">
-              Create a 4-second video animation from your image.
-            </p>
+          <div className="space-y-4">
+            {/* 1. Image Source Selection */}
+            <div className="flex space-x-4 mb-2">
+              <button
+                onClick={() => setState(prev => ({ ...prev, uploadedForVideo: null }))}
+                className={`px-4 py-2 rounded ${!state.uploadedForVideo ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+              >
+                Use Generated Grid
+              </button>
+              <label className={`px-4 py-2 rounded cursor-pointer ${state.uploadedForVideo ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                Upload Custom Image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setState(prev => ({ ...prev, uploadedForVideo: reader.result as string }));
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            {/* Image Preview */}
+            <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden border border-gray-600 flex items-center justify-center">
+              {state.uploadedForVideo ? (
+                <img src={state.uploadedForVideo} alt="Source" className="max-h-full" />
+              ) : state.finalImageUrl ? ( // Changed from state.generatedImage to state.finalImageUrl
+                <img src={state.finalImageUrl} alt="Source" className="max-h-full" />
+              ) : (
+                <span className="text-gray-500">No image available. Generate a grid or upload an image.</span>
+              )}
+            </div>
+
+            {/* 2. Prompt Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Video Prompt (Motion Description)
+              </label>
+              <textarea
+                value={state.videoPrompt}
+                onChange={(e) => setState(prev => ({ ...prev, videoPrompt: e.target.value }))}
+                placeholder="Describe the camera movement and subject action..."
+                className="w-full bg-gray-700 text-white rounded p-3 border border-gray-600 h-24 focus:ring-2 focus:ring-purple-500 outline-none"
+              />
+            </div>
+
+            {/* 3. Duration Selector */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Duration (Seconds)
+              </label>
+              <div className="flex space-x-2">
+                {[4, 8, 16].map(sec => (
+                  <button
+                    key={sec}
+                    onClick={() => setState(prev => ({ ...prev, videoDuration: sec }))}
+                    className={`px-4 py-2 rounded border ${state.videoDuration === sec ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
+                  >
+                    {sec}s
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Generate Button */}
             <button
               onClick={handleGenerateVideo}
-              disabled={state.isGeneratingVideo}
-              className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all ${!state.isGeneratingVideo
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:scale-[1.02] text-white shadow-lg shadow-purple-500/20'
-                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              disabled={state.isGeneratingVideo || (!state.finalImageUrl && !state.uploadedForVideo)} // Changed from state.generatedImage to state.finalImageUrl
+              className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform hover:scale-[1.02] ${state.isGeneratingVideo || (!state.finalImageUrl && !state.uploadedForVideo) // Changed from state.generatedImage to state.finalImageUrl
+                  ? 'bg-gray-600 cursor-not-allowed text-gray-400'
+                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-900/50'
                 }`}
             >
-              {state.isGeneratingVideo ? <RefreshCw className="animate-spin" /> : <Film size={18} />}
-              {state.isGeneratingVideo ? 'Generating Video (approx 30s)...' : 'Generate Video (Credits Apply)'}
+              {state.isGeneratingVideo ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Generating Video (Vidu Q3)...
+                </span>
+              ) : (
+                "Generate Video ✨"
+              )}
             </button>
+
+            {/* Result Video */}
+            {state.videoUrl && (
+              <div className="mt-6">
+                <h3 className="text-lg font-bold text-white mb-2">Generated Video Result</h3>
+                <video
+                  controls
+                  className="w-full rounded-lg shadow-lg border border-purple-500/30"
+                  src={state.videoUrl}
+                >
+                  Your browser does not support the video tag.
+                </video>
+                <div className="mt-2 text-center">
+                  <a
+                    href={state.videoUrl}
+                    download="vidu_generated_video.mp4"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-purple-400 hover:text-purple-300 underline text-sm"
+                  >
+                    Download Video
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-xl overflow-hidden border border-purple-500/30 shadow-lg shadow-purple-900/20">
-              <video
-                src={state.videoUrl}
-                controls
-                className="w-full"
-                poster={state.modifiedImageUrl || state.finalImageUrl || undefined}
-              >
-                Your browser does not support the video tag.
-              </video>
-            </div>
-            <div className="flex justify-center">
-              <a
-                href={state.videoUrl}
-                download={`scene-video-${Date.now()}.mp4`}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-sm flex items-center gap-2"
-                target="_blank"
-              >
-                <Download size={16} /> Download Video
-              </a>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       <div className="flex justify-center gap-4 mt-8">

@@ -12,14 +12,18 @@ async function blobToBase64(url: string): Promise<string> {
     });
 }
 
-export async function generateVideo(imageUrl: string, prompt?: string): Promise<string> {
+export interface VideoOptions {
+    model?: string;
+    duration?: number;
+    resolution?: string;
+}
+
+export async function generateVideo(imageUrl: string, prompt?: string, options?: VideoOptions): Promise<string> {
     if (!VIDU_API_KEY) {
         throw new Error("VIDU API Key is missing. Please check .env settings.");
     }
 
     // 1. Handle Image Source (Blob URL vs Remote URL)
-    // Vidu API requires a publicly accessible URL or a Base64 string.
-    // Since 'imageUrl' might be a local Blob URL (blob:http://...), we convert it to Base64.
     let finalImageInput = imageUrl;
     if (imageUrl.startsWith('blob:')) {
         console.log("[VIDU API] Converting Blob URL to Base64...");
@@ -32,12 +36,12 @@ export async function generateVideo(imageUrl: string, prompt?: string): Promise<
     }
 
     // 2. Construct Payload strictly according to Vidu API Docs
-    // Ref: User provided docs
     const payload = {
-        model: "vidu2.0", // Required: viduq3-pro, viduq1, vidu2.0, etc.
-        images: [finalImageInput], // Required: Array of strings (URL or Base64)
+        model: options?.model || "viduq3-pro",
+        images: [finalImageInput],
         prompt: prompt || "Animate this scene naturally, cinematic movement",
-        duration: 4 // vidu2.0 supports 4s or 8s
+        duration: options?.duration || 5,
+        resolution: options?.resolution || "1080p"
     };
 
     console.log("[VIDU API] Sending payload...", { ...payload, images: ["<base64_data>"] });
