@@ -123,6 +123,11 @@ export interface SceneGeneratorState {
     // Video Generation (VIDU)
     isGeneratingVideo: boolean;
     videoUrl: string | null;
+    videoPrompt: string;           // NEW: Prompt for video
+    uploadedForVideo: string | null; // NEW: Manual upload source
+    videoDuration: number;         // NEW: Duration (4, 8, 16)
+    videoResolution: string;       // NEW: "1080p"
+    videoModel: string;            // NEW: "viduq3-pro"
 
     // Error handling
     error: string | null;

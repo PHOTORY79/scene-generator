@@ -285,23 +285,28 @@ function App() {
   const handleGenerateVideo = async () => {
     const sourceImage = state.modifiedImageUrl || state.finalImageUrl;
     if (!sourceImage) return;
+    const sourceImage = state.uploadedForVideo || state.generatedImage;
 
-    setState(prev => ({ ...prev, isGeneratingVideo: true }));
+    if (!sourceImage) return;
+
+    setState(prev => ({ ...prev, isGeneratingVideo: true, videoUrl: null }));
 
     try {
-      // Use modification prompt or context prompt as base, or default
-      const prompt = state.modificationPrompt || state.contextPrompt || "Cinematic movement, high quality";
-
-      const videoUrl = await generateVideo(sourceImage, prompt);
-
-      setState(prev => ({
-        ...prev,
-        isGeneratingVideo: false,
-        videoUrl: videoUrl
-      }));
-    } catch (err: any) {
-      setState(prev => ({ ...prev, isGeneratingVideo: false, error: err.message }));
-      alert(`Video Generation Error: ${err.message}`);
+      // Using Vidu Q3 Upgrade logic
+      const videoUrl = await generateVideo(
+        sourceImage,
+        state.videoPrompt || "Animate this scene naturally",
+        {
+          model: state.videoModel,
+          duration: state.videoDuration,
+          resolution: state.videoResolution
+        }
+      );
+      setState(prev => ({ ...prev, videoUrl, isGeneratingVideo: false }));
+    } catch (error: any) {
+      console.error("Video Generation Error:", error);
+      alert(`Video Generation Failed: ${error.message}`);
+      setState(prev => ({ ...prev, isGeneratingVideo: false }));
     }
   };
 
@@ -785,8 +790,8 @@ function App() {
               onClick={handleGenerateVideo}
               disabled={state.isGeneratingVideo || (!state.finalImageUrl && !state.uploadedForVideo)} // Changed from state.generatedImage to state.finalImageUrl
               className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform hover:scale-[1.02] ${state.isGeneratingVideo || (!state.finalImageUrl && !state.uploadedForVideo) // Changed from state.generatedImage to state.finalImageUrl
-                  ? 'bg-gray-600 cursor-not-allowed text-gray-400'
-                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-900/50'
+                ? 'bg-gray-600 cursor-not-allowed text-gray-400'
+                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-900/50'
                 }`}
             >
               {state.isGeneratingVideo ? (
