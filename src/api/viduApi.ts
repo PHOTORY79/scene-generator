@@ -34,16 +34,8 @@ export async function generateVideo(imageUrl: string, prompt?: string): Promise<
         // I will implement this with a fetch structure that mimics standard behaviour but log clearly.
         // I will use `https://api.vidu.studio/v1/videos` as a best guess from search snippets.
 
-        // DEBUG: Check if API Key exists and what endpoint is used
-        const keyStatus = VIDU_API_KEY ? `Present (Starts with ${VIDU_API_KEY.substring(0, 4)}...)` : 'MISSING';
-        console.log(`[VIDU DEBUG] Key: ${keyStatus}`);
-        console.log(`[VIDU DEBUG] Endpoint: /api/vidu/ent/v2/img2video`);
-
-        // Temporary Alert for immediate feedback in Prod
-        alert(`[DEBUG] API Key: ${keyStatus}\nEndpoint: /api/vidu/ent/v2/img2video`);
-
         // Use local proxy to avoid CORS
-        // Endpoint: https://api.vidu.com/ent/v2/img2video (Inferred from docs pattern)
+        // Endpoint: https://api.vidu.com/ent/v2/img2video
         const response = await fetch('/api/vidu/ent/v2/img2video', {
             method: 'POST',
             headers: {
