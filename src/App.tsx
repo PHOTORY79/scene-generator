@@ -718,14 +718,29 @@ function App() {
 
           <div className="space-y-4">
             {/* 1. Image Source Selection */}
-            <div className="flex space-x-4 mb-2">
-              <button
-                onClick={() => setState(prev => ({ ...prev, uploadedForVideo: null }))}
-                className={`px-4 py-2 rounded ${!state.uploadedForVideo ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400'}`}
-              >
-                Use Generated Grid
-              </button>
-              <label className={`px-4 py-2 rounded cursor-pointer ${state.uploadedForVideo ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {/* Option A: Use Final Image (Default if exists) */}
+              {state.finalImageUrl && (
+                <button
+                  onClick={() => setState(prev => ({ ...prev, uploadedForVideo: null, useGridAsSource: false }))}
+                  className={`px-4 py-2 rounded text-sm font-bold transition-colors ${!state.uploadedForVideo && !state.useGridAsSource ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                >
+                  Use Final Result (1 Image)
+                </button>
+              )}
+
+              {/* Option B: Use 9-Grid Preview (Explicit Request) */}
+              {state.previewGridUrl && (
+                <button
+                  onClick={() => setState(prev => ({ ...prev, uploadedForVideo: null, useGridAsSource: true }))}
+                  className={`px-4 py-2 rounded text-sm font-bold transition-colors ${!state.uploadedForVideo && state.useGridAsSource ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
+                >
+                  Use 9-Grid Preview
+                </button>
+              )}
+
+              {/* Option C: Upload Custom */}
+              <label className={`px-4 py-2 rounded text-sm font-bold cursor-pointer transition-colors ${state.uploadedForVideo ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
                 Upload Custom Image
                 <input
                   type="file"
@@ -745,15 +760,40 @@ function App() {
               </label>
             </div>
 
-            {/* Image Preview */}
-            <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden border border-gray-600 flex items-center justify-center">
-              {state.uploadedForVideo ? (
-                <img src={state.uploadedForVideo} alt="Source" className="max-h-full" />
-              ) : (state.finalImageUrl || state.previewGridUrl) ? (
-                <img src={state.finalImageUrl || state.previewGridUrl || ""} alt="Source" className="max-h-full" />
-              ) : (
-                <span className="text-gray-500">No image available. Generate a grid or upload an image.</span>
-              )}
+            {/* Image Preview Area */}
+            <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden border border-gray-600 flex items-center justify-center mb-6">
+              {/* Logic to determine what to show */}
+              {(() => {
+                let displayImage = null;
+                let label = "";
+
+                if (state.uploadedForVideo) {
+                  displayImage = state.uploadedForVideo;
+                  label = "Custom Upload";
+                } else if (state.useGridAsSource && state.previewGridUrl) {
+                  displayImage = state.previewGridUrl;
+                  label = "9-Grid Preview Source";
+                } else if (state.finalImageUrl || state.modifiedImageUrl) {
+                  displayImage = state.modifiedImageUrl || state.finalImageUrl;
+                  label = "Final / Modified Image";
+                } else if (state.previewGridUrl) {
+                  displayImage = state.previewGridUrl;
+                  label = "9-Grid Preview Source";
+                }
+
+                if (displayImage) {
+                  return (
+                    <>
+                      <img src={displayImage} alt="Source" className="max-h-full object-contain" />
+                      <div className="absolute top-2 left-2 bg-black/70 px-2 py-1 rounded text-xs text-white border border-white/20">
+                        Source: {label}
+                      </div>
+                    </>
+                  );
+                } else {
+                  return <span className="text-gray-500">No image available. Please generate or upload.</span>;
+                }
+              })()}
             </div>
 
             {/* 2. Prompt Input */}

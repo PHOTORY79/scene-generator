@@ -128,6 +128,7 @@ export interface SceneGeneratorState {
     videoDuration: number;         // NEW: Duration (4, 8, 16)
     videoResolution: string;       // NEW: "1080p"
     videoModel: string;            // NEW: "viduq3-pro"
+    useGridAsSource: boolean;      // NEW: Explicitly use 9-grid as source
 
     // Error handling
     error: string | null;
@@ -163,6 +164,7 @@ export const initialState: SceneGeneratorState = {
     videoDuration: 5,
     videoResolution: '1080p',
     videoModel: 'viduq3-pro',
+    useGridAsSource: false,
 
     error: null,
 };
