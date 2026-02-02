@@ -283,11 +283,13 @@ function App() {
   };
 
   const handleGenerateVideo = async () => {
-    const sourceImage = state.modifiedImageUrl || state.finalImageUrl;
-    if (!sourceImage) return;
-    const sourceImage = state.uploadedForVideo || state.generatedImage;
+    // Priority: Uploaded Custom > Modified Image > Final Grid Image (finalImageUrl) > Preview Grid (previewGridUrl)
+    const sourceImage = state.uploadedForVideo || state.modifiedImageUrl || state.finalImageUrl || state.previewGridUrl;
 
-    if (!sourceImage) return;
+    if (!sourceImage) {
+      alert("No image available for video generation. Please generate a grid or upload an image.");
+      return;
+    }
 
     setState(prev => ({ ...prev, isGeneratingVideo: true, videoUrl: null }));
 
@@ -747,8 +749,8 @@ function App() {
             <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden border border-gray-600 flex items-center justify-center">
               {state.uploadedForVideo ? (
                 <img src={state.uploadedForVideo} alt="Source" className="max-h-full" />
-              ) : state.finalImageUrl ? ( // Changed from state.generatedImage to state.finalImageUrl
-                <img src={state.finalImageUrl} alt="Source" className="max-h-full" />
+              ) : (state.finalImageUrl || state.previewGridUrl) ? (
+                <img src={state.finalImageUrl || state.previewGridUrl || ""} alt="Source" className="max-h-full" />
               ) : (
                 <span className="text-gray-500">No image available. Generate a grid or upload an image.</span>
               )}
@@ -788,8 +790,8 @@ function App() {
             {/* Generate Button */}
             <button
               onClick={handleGenerateVideo}
-              disabled={state.isGeneratingVideo || (!state.finalImageUrl && !state.uploadedForVideo)} // Changed from state.generatedImage to state.finalImageUrl
-              className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform hover:scale-[1.02] ${state.isGeneratingVideo || (!state.finalImageUrl && !state.uploadedForVideo) // Changed from state.generatedImage to state.finalImageUrl
+              disabled={state.isGeneratingVideo || (!state.finalImageUrl && !state.previewGridUrl && !state.uploadedForVideo)}
+              className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform hover:scale-[1.02] ${state.isGeneratingVideo || (!state.finalImageUrl && !state.previewGridUrl && !state.uploadedForVideo)
                 ? 'bg-gray-600 cursor-not-allowed text-gray-400'
                 : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-900/50'
                 }`}
