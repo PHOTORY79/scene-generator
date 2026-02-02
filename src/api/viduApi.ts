@@ -83,10 +83,10 @@ export async function generateVideo(imageUrl: string, prompt?: string, options?:
 }
 
 async function pollForVideo(taskId: string): Promise<string> {
-    const maxAttempts = 60; // Wait up to 60 seconds
+    const maxAttempts = 300; // Wait up to 300 seconds (5 minutes) for high-quality generation
     let attempts = 0;
 
-    console.log(`[VIDU API] Polling for task: ${taskId}`);
+    console.log(`[VIDU API] Polling for task: ${taskId} (Max 300s)`);
 
     while (attempts < maxAttempts) {
         await new Promise(r => setTimeout(r, 1000));
@@ -130,5 +130,5 @@ async function pollForVideo(taskId: string): Promise<string> {
             console.warn("[VIDU API] Polling error:", e);
         }
     }
-    throw new Error("Video generation timed out (60s).");
+    throw new Error("Video generation timed out (300s). Check Vidu dashboard for status.");
 }
