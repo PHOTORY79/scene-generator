@@ -429,8 +429,24 @@ function App() {
           onCellSelect={handleCellSelect}
           aspectRatio={state.gridAspectRatio}
         />
-        <div className="text-center text-gray-400 text-sm">
-          Click on a panel to select it for high-resolution rendering.
+        <div className="flex flex-col items-center gap-3">
+          <div className="text-center text-gray-400 text-sm">
+            Click on a panel to select it for high-resolution rendering.
+          </div>
+          <button
+            onClick={() => {
+              const link = document.createElement('a');
+              link.href = state.previewGridUrl!;
+              link.download = `33grid-preview-${Date.now()}.png`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
+          >
+            <Download size={16} />
+            Download Full Grid Image (전체 그리드 다운로드)
+          </button>
         </div>
       </div>
 
