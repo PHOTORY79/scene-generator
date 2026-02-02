@@ -181,7 +181,9 @@ export async function generatePreview(
 ): Promise<{ url: string; metadata: any[] }> {
     // 1. gemini-3-pro-image-preview (Nano Banana Pro)
     // 2. imagen-3.0-generate-001 (fallback)
-    const modelsToTry = ['gemini-3-pro-image-preview', 'imagen-3.0-generate-001'];
+    // 1. imagen-3.0-generate-001 (Primary for images)
+    // 2. gemini-2.0-flash-exp (Experimental fallback if available/supported)
+    const modelsToTry = ['imagen-3.0-generate-001'];
     let lastError = null;
 
     let imagePart;
@@ -268,7 +270,9 @@ export async function generatePreview(
     }
 
     // All failed
-    alert("모델명을 확인해주세요");
+    // All failed
+    const errorMsg = lastError?.message || "All models failed";
+    alert(`Generation failed. Details: ${errorMsg}`);
     throw lastError || new Error("All models failed");
 }
 
@@ -281,7 +285,7 @@ export async function generateFinal(
     croppedImageBase64: string,
     contextPrompt?: string
 ): Promise<string> {
-    const modelsToTry = ['gemini-3-pro-image-preview', 'imagen-3.0-generate-001'];
+    const modelsToTry = ['imagen-3.0-generate-001'];
     let lastError = null;
 
     // 1. Original Image (Character/Style Reference)
@@ -333,6 +337,7 @@ export async function generateFinal(
         }
     }
 
-    alert("모델명을 확인해주세요");
+    const errorMsg = lastError?.message || "All models failed";
+    alert(`Generation failed. Details: ${errorMsg}`);
     throw lastError || new Error("All models failed");
 }
