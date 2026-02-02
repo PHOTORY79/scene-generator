@@ -169,6 +169,39 @@ cartoon style, illustration style, anime style,
 painting style, sketch style, low quality, blurry`;
 }
 
+// STORY mode prompt template
+function buildStoryPrompt(storyLine: string, ratioLabel: string): string {
+    return `[ROLE]
+You are a Visual Director creating a storyboard based on a specific narrative.
+
+[REFERENCE - IMMUTABLE]
+The FIRST IMAGE is your ONLY visual source for the character's appearance (face, hair, clothes).
+You MUST maintain the character's identity exactly as shown in the reference image.
+
+[NARRATIVE INPUT]
+Story Line: "${storyLine}"
+
+[TASK]
+Create a single image containing a 3x3 grid (9 panels) that visualizes this story line.
+The 9 panels should represent a sequence of key moments or a variety of shots that best depict the atmosphere and action of the provided story line.
+The overall canvas aspect ratio must be ${ratioLabel}.
+
+[GRID CONTENTS]
+- Each panel should show a distinct beat or angle related to the story.
+- Use a mix of shot distances (Wide, Medium, Close-up) to create visual interest.
+- Ensure the character's emotion matches the story context in each panel.
+
+[REQUIREMENTS]
+- STRICT IDENTITY CONSISTENCY: The character must look exactly like the reference.
+- Photorealistic style.
+- Cinematic lighting and composition.
+- Seamless grid layout (no borders).
+- No text or speech bubbles.
+
+[NEGATIVE PROMPT]
+different person, changed identity, wrong clothes, cartoon, illustration, text, watermark, borders, speech bubbles`;
+}
+
 export async function generatePreview(
     referenceImage: File,
     logicMode: string,
@@ -199,6 +232,9 @@ export async function generatePreview(
     if (logicMode === 'CINEMATIC' && genrePresetId) {
         // Smart Layout mode - use cinematic prompt template
         prompt = buildCinematicPrompt(genrePresetId, ratioLabel);
+    } else if (logicMode === 'STORY') {
+        // Story Mode
+        prompt = buildStoryPrompt(contextPrompt, ratioLabel);
     } else {
         // Original mode (LINEAR/MATRIX/DYNAMIC)
         prompt = `IMPORTANT CONSTRAINT: The final output image must be a 3x3 grid. The overall canvas aspect ratio must match ${ratioLabel} (e.g., 16:9). Do NOT generate a square image if 16:9 is requested. Fill the entire width.
@@ -237,17 +273,18 @@ export async function generatePreview(
             const imageUrl = await extractImageFromResponse(response);
 
             // Build metadata based on mode
-            const metadata = logicMode === 'CINEMATIC'
+            const metadata = (logicMode === 'CINEMATIC' || logicMode === 'STORY')
                 ? [
-                    { cell: 0, shot: 'Extreme Long Shot', angle: 'Eye Level' },
-                    { cell: 1, shot: 'Long Shot', angle: 'Eye Level' },
-                    { cell: 2, shot: 'Medium Long Shot', angle: 'Eye Level' },
-                    { cell: 3, shot: 'Medium Shot', angle: 'Eye Level' },
-                    { cell: 4, shot: 'Medium Close-Up', angle: 'Eye Level' },
-                    { cell: 5, shot: 'Close-Up', angle: 'Eye Level' },
-                    { cell: 6, shot: 'Extreme Close-Up', angle: 'Eye Level' },
-                    { cell: 7, shot: 'Medium Shot', angle: 'Low Angle' },
-                    { cell: 8, shot: 'Medium Shot', angle: 'High Angle' }
+                    // For Story mode, we don't have predetermined shots, so we label generously
+                    { cell: 0, shot: 'Story Shot 1', angle: 'Visual Storytelling' },
+                    { cell: 1, shot: 'Story Shot 2', angle: 'Visual Storytelling' },
+                    { cell: 2, shot: 'Story Shot 3', angle: 'Visual Storytelling' },
+                    { cell: 3, shot: 'Story Shot 4', angle: 'Visual Storytelling' },
+                    { cell: 4, shot: 'Story Shot 5', angle: 'Visual Storytelling' },
+                    { cell: 5, shot: 'Story Shot 6', angle: 'Visual Storytelling' },
+                    { cell: 6, shot: 'Story Shot 7', angle: 'Visual Storytelling' },
+                    { cell: 7, shot: 'Story Shot 8', angle: 'Visual Storytelling' },
+                    { cell: 8, shot: 'Story Shot 9', angle: 'Visual Storytelling' }
                 ]
                 : Array.from({ length: 9 }).map((_, i) => ({
                     cell: i,
@@ -255,6 +292,27 @@ export async function generatePreview(
                     shot: 'AI Generated',
                     expression: 'AI Generated'
                 }));
+
+            // If it was strictly CINEMATIC (Smart Layout), override with specific labels if possible, 
+            // but the above block covers both generally. 
+            // Let's refine for CINEMATIC specifically if needed to match previous exact map.
+            if (logicMode === 'CINEMATIC') {
+                // Restore the exact cinematic map
+                return {
+                    url: imageUrl,
+                    metadata: [
+                        { cell: 0, shot: 'Extreme Long Shot', angle: 'Eye Level' },
+                        { cell: 1, shot: 'Long Shot', angle: 'Eye Level' },
+                        { cell: 2, shot: 'Medium Long Shot', angle: 'Eye Level' },
+                        { cell: 3, shot: 'Medium Shot', angle: 'Eye Level' },
+                        { cell: 4, shot: 'Medium Close-Up', angle: 'Eye Level' },
+                        { cell: 5, shot: 'Close-Up', angle: 'Eye Level' },
+                        { cell: 6, shot: 'Extreme Close-Up', angle: 'Eye Level' },
+                        { cell: 7, shot: 'Medium Shot', angle: 'Low Angle' },
+                        { cell: 8, shot: 'Medium Shot', angle: 'High Angle' }
+                    ]
+                };
+            }
 
             // Success
             return {

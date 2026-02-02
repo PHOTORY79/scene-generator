@@ -1,4 +1,4 @@
-export type LogicMode = 'LINEAR' | 'MATRIX' | 'DYNAMIC' | 'CINEMATIC';
+export type LogicMode = 'LINEAR' | 'MATRIX' | 'DYNAMIC' | 'CINEMATIC' | 'STORY';
 export type Resolution = '1K' | '2K' | '4K';
 export type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9';
 
@@ -89,11 +89,14 @@ export interface SceneGeneratorState {
         expression: boolean;
     };
     logicMode: LogicMode;
-    contextPrompt: string;
+    contextPrompt: string; // Used for Context or Story Line
 
     // Smart Layout (CINEMATIC mode)
     smartLayoutEnabled: boolean;
     selectedGenre: string; // Genre preset ID
+
+    // Story Mode
+    storyModeEnabled: boolean;
 
     // Step 3: Preview
     isGeneratingPreview: boolean;
@@ -124,6 +127,7 @@ export const initialState: SceneGeneratorState = {
     contextPrompt: '',
     smartLayoutEnabled: false,
     selectedGenre: 'cinematic', // Default: Cinematic
+    storyModeEnabled: false,
     isGeneratingPreview: false,
     previewGridUrl: null,
     gridMetadata: [],
