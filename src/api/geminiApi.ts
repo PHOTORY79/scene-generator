@@ -181,9 +181,8 @@ export async function generatePreview(
 ): Promise<{ url: string; metadata: any[] }> {
     // 1. gemini-3-pro-image-preview (Nano Banana Pro)
     // 2. imagen-3.0-generate-001 (fallback)
-    // 1. imagen-3.0-generate-001 (Primary for images)
-    // 2. gemini-2.0-flash-exp (Experimental fallback if available/supported)
-    const modelsToTry = ['imagen-3.0-generate-001'];
+    // Updated to use confirmed available models
+    const modelsToTry = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
     let lastError = null;
 
     let imagePart;
@@ -285,7 +284,7 @@ export async function generateFinal(
     croppedImageBase64: string,
     contextPrompt?: string
 ): Promise<string> {
-    const modelsToTry = ['imagen-3.0-generate-001'];
+    const modelsToTry = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
     let lastError = null;
 
     // 1. Original Image (Character/Style Reference)
