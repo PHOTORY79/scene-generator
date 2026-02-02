@@ -40,7 +40,7 @@ export async function generateVideo(imageUrl: string, prompt?: string): Promise<
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${VIDU_API_KEY}`
+                'Authorization': `Token ${VIDU_API_KEY}` // Docs say 'Token {key}', not 'Bearer'
             },
             body: JSON.stringify(payload)
         });
@@ -74,7 +74,7 @@ async function pollForVideo(taskId: string): Promise<string> {
             // Polling endpoint: https://api.vidu.com/ent/v2/tasks/{id}/creations
             const res = await fetch(`/api/vidu/ent/v2/tasks/${taskId}/creations`, {
                 headers: {
-                    'Authorization': `Bearer ${VIDU_API_KEY}`
+                    'Authorization': `Token ${VIDU_API_KEY}`
                 }
             });
 
