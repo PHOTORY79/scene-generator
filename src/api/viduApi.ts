@@ -1,57 +1,75 @@
-const VIDU_API_KEY = import.meta.env.VITE_VIDU_API_KEY;
+const VIDU_API_KEY = import.meta.env.VITE_VIDU_API_KEY?.trim();
+
+// Helper to convert Blob URL (standard in React local dev) to Base64 Data URL
+async function blobToBase64(url: string): Promise<string> {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
 
 export async function generateVideo(imageUrl: string, prompt?: string): Promise<string> {
     if (!VIDU_API_KEY) {
         throw new Error("VIDU API Key is missing. Please check .env settings.");
     }
 
-    console.log("[VIDU API] Starting video generation...");
+    // 1. Handle Image Source (Blob URL vs Remote URL)
+    // Vidu API requires a publicly accessible URL or a Base64 string.
+    // Since 'imageUrl' might be a local Blob URL (blob:http://...), we convert it to Base64.
+    let finalImageInput = imageUrl;
+    if (imageUrl.startsWith('blob:')) {
+        console.log("[VIDU API] Converting Blob URL to Base64...");
+        try {
+            finalImageInput = await blobToBase64(imageUrl);
+        } catch (e) {
+            console.error("Failed to convert blob to base64:", e);
+            throw new Error("Failed to process image. Please try saving it first.");
+        }
+    }
 
-    // VIDU typically requires an image URL accessible from the internet.
-    // Since we are running locally, we might need a workaround if the image URL is a blob.
-    // However, many modern APIs accept base64 or upload. 
-    // Let's try standard Vidu API usage.
-    // According to knowledge/search, endpoints often follow standard REST patterns.
-    // We will try the https://api.vidu.studio/v1/videos endpoint (or similar known common pattern).
-    // Note: If Vidu requires uploading, we'd need a separate upload step. 
-    // For this implementation, we assume it can take the URL we have (if public) or we try to send base64 if supported.
-    // If usage fails due to URL not being public (localhost), user will see error.
+    // 2. Construct Payload strictly according to Vidu API Docs
+    // Ref: User provided docs
+    const payload = {
+        model: "vidu2.0", // Required: viduq3-pro, viduq1, vidu2.0, etc.
+        images: [finalImageInput], // Required: Array of strings (URL or Base64)
+        prompt: prompt || "Animate this scene naturally, cinematic movement",
+        duration: 4 // vidu2.0 supports 4s or 8s
+    };
+
+    console.log("[VIDU API] Sending payload...", { ...payload, images: ["<base64_data>"] });
 
     try {
-        const payload = {
-            image_url: imageUrl, // Assumes public URL or supported format
-            prompt: prompt || "Animate this scene naturally",
-            duration: 5 // Default duration
-        };
-
-        // We'll use a standard fetch to the likely endpoint. 
-        // If specific docs were provided, I'd use them. 
-        // Based on "vidu-studio" hits, let's try assuming standard Vidu/vda pattern.
-        // Actually, without exact docs, I will use a generic structure that is easy to adapt.
-
-        // MOCK/PLACEHOLDER WARNING: 
-        // Since I don't have the EXACT Vidu API endpoint specs (urls can vary: api.vidu.studio, api.vidu.com, etc.),
-
-        // Use local proxy to avoid CORS
-        // Endpoint: https://api.vidu.com/ent/v2/img2video
+        // 3. Send Request
+        // Proxy: /api/vidu -> https://api.vidu.com
         const response = await fetch('/api/vidu/ent/v2/img2video', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Token ${VIDU_API_KEY}` // Docs say 'Token {key}', not 'Bearer'
+                'Authorization': `Token ${VIDU_API_KEY}` // Docs specify 'Token {key}'
             },
             body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
             const errText = await response.text();
+            console.error("[VIDU API Error Body]", errText);
             throw new Error(`VIDU API Error (${response.status}): ${errText}`);
         }
 
         const data = await response.json();
-        const taskId = data.id || data.task_id;
 
-        // Poll for result
+        // 4. Handle Response
+        // Docs: returns { task_id, state, ... }
+        const taskId = data.task_id || data.id;
+        if (!taskId) {
+            throw new Error("No task_id returned from Vidu API");
+        }
+
+        // 5. Poll for Result
         return await pollForVideo(taskId);
 
     } catch (e: any) {
@@ -61,15 +79,16 @@ export async function generateVideo(imageUrl: string, prompt?: string): Promise<
 }
 
 async function pollForVideo(taskId: string): Promise<string> {
-    const maxAttempts = 60; // 60 seconds (approx)
+    const maxAttempts = 60; // Wait up to 60 seconds
     let attempts = 0;
+
+    console.log(`[VIDU API] Polling for task: ${taskId}`);
 
     while (attempts < maxAttempts) {
         await new Promise(r => setTimeout(r, 1000));
         attempts++;
 
         try {
-            // Polling endpoint: https://api.vidu.com/ent/v2/tasks/{id}/creations
             const res = await fetch(`/api/vidu/ent/v2/tasks/${taskId}/creations`, {
                 headers: {
                     'Authorization': `Token ${VIDU_API_KEY}`
@@ -79,18 +98,33 @@ async function pollForVideo(taskId: string): Promise<string> {
             if (!res.ok) continue;
 
             const data = await res.json();
-            // Data structure check - typically returns a list or status object
-            // Assuming data is standard Vidu response: { state: "success", creations: [...] }
-            if (data.state === 'success' || data.status === 'success') {
-                // If it's a list, take the first one
-                const result = Array.isArray(data.creations) ? data.creations[0] : (data.creations || data);
-                return result.url || result.output_url || result;
-            } else if (data.state === 'failed' || data.status === 'failed') {
-                throw new Error("Video generation failed server-side.");
+            // Docs say callback body has "state": "success" | "processing" | "failed"
+            // The polling endpoint typically returns the same structure or a list of creations
+
+            // Check status/state
+            const state = data.state || data.status;
+
+            if (state === 'success') {
+                // Success! Find the video URL.
+                // data could be the creation object itself or contain 'creations' list
+                let resultUrl = data.url || data.output_url;
+
+                // If data.creations exists (common in list endpoints), check that
+                if (!resultUrl && Array.isArray(data.creations) && data.creations.length > 0) {
+                    resultUrl = data.creations[0].url || data.creations[0].output_url;
+                }
+
+                // If still not found, check top level 'images' or 'video_url'
+                if (!resultUrl) resultUrl = data.video_url;
+
+                if (resultUrl) return resultUrl;
+            } else if (state === 'failed') {
+                throw new Error(`Video generation failed: ${JSON.stringify(data)}`);
             }
+            // If 'processing' or 'queueing', continue loop
         } catch (e) {
-            console.warn("Polling error:", e);
+            console.warn("[VIDU API] Polling error:", e);
         }
     }
-    throw new Error("Video generation timed out.");
+    throw new Error("Video generation timed out (60s).");
 }
