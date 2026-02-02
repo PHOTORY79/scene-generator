@@ -31,8 +31,6 @@ export async function generateVideo(imageUrl: string, prompt?: string): Promise<
 
         // MOCK/PLACEHOLDER WARNING: 
         // Since I don't have the EXACT Vidu API endpoint specs (urls can vary: api.vidu.studio, api.vidu.com, etc.),
-        // I will implement this with a fetch structure that mimics standard behaviour but log clearly.
-        // I will use `https://api.vidu.studio/v1/videos` as a best guess from search snippets.
 
         // Use local proxy to avoid CORS
         // Endpoint: https://api.vidu.com/ent/v2/img2video
