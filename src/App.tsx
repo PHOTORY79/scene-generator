@@ -127,6 +127,44 @@ function App() {
     setState(prev => ({ ...prev, contextPrompt: e.target.value }));
   };
 
+  // Helper: Update Grid Cell with New Image
+  const updateGridWithImage = async (gridUrl: string, cellIndex: number, newImageUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const gridImg = new Image();
+      gridImg.crossOrigin = "Anonymous";
+      gridImg.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = gridImg.width;
+        canvas.height = gridImg.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject("No canvas context"); return; }
+
+        // Draw original grid
+        ctx.drawImage(gridImg, 0, 0);
+
+        // Load new image
+        const cellImg = new Image();
+        cellImg.crossOrigin = "Anonymous";
+        cellImg.onload = () => {
+          // Calculate cell position
+          const cellWidth = gridImg.width / 3;
+          const cellHeight = gridImg.height / 3;
+          const row = Math.floor(cellIndex / 3);
+          const col = cellIndex % 3;
+
+          // Draw new image into the cell slot
+          ctx.drawImage(cellImg, col * cellWidth, row * cellHeight, cellWidth, cellHeight);
+
+          resolve(canvas.toDataURL('image/jpeg', 0.95));
+        };
+        cellImg.onerror = (e) => reject(e);
+        cellImg.src = newImageUrl;
+      };
+      gridImg.onerror = (e) => reject(e);
+      gridImg.src = gridUrl;
+    });
+  };
+
   // Helper: Crop Cell from Grid
   const cropCellFromGrid = async (gridUrl: string, cellIndex: number): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -666,21 +704,35 @@ function App() {
               <Download size={18} /> Download
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
+                const currentImage = state.modifiedImageUrl || state.finalImageUrl;
+                if (!currentImage) return;
+
+                // 1. Update Grid locally
+                if (state.previewGridUrl && state.selectedCellIndex !== null) {
+                  try {
+                    const newGridUrl = await updateGridWithImage(state.previewGridUrl, state.selectedCellIndex, currentImage);
+                    setState(prev => ({ ...prev, previewGridUrl: newGridUrl }));
+                  } catch (e) {
+                    console.error("Failed to update grid:", e);
+                  }
+                }
+
+                // 2. Send to Parent
                 const payload = {
                   type: 'SCENE_GENERATED',
-                  image: state.modifiedImageUrl || state.finalImageUrl,
+                  image: currentImage,
                   stats: stats
                 };
                 if (window.opener) {
                   window.opener.postMessage(payload, '*');
                 }
                 window.parent.postMessage(payload, '*');
-                alert('Data sent to framework!');
+                alert('Saved to Project & Grid Updated!');
               }}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-500"
             >
-              <Send size={18} /> Save to Project
+              <Send size={18} /> Save & Update Grid
             </button>
           </div>
         </div>
