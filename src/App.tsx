@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Upload, Camera, Film, Smile, Zap, CheckCircle,
   Settings, Download, RefreshCw, ChevronRight, Image as ImageIcon, Send, Sparkles
@@ -14,8 +14,76 @@ function App() {
   const [state, setState] = useState<SceneGeneratorState>(initialState);
   const [stats, setStats] = useState<UsageStats>({ previewCount: 0, finalCount: 0 });
 
+  // External Integration Mode (33Grid from Concept Art Editor)
+  const [externalMode, setExternalMode] = useState<{
+    enabled: boolean;
+    sourceImageUrl: string | null;
+    mode: '33grid' | null;
+  }>({ enabled: false, sourceImageUrl: null, mode: null });
+
   // Refs for file input
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle URL parameters for external integration
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const imageUrl = urlParams.get('imageUrl');
+    const mode = urlParams.get('mode');
+
+    if (imageUrl && mode === '33grid') {
+      setExternalMode({
+        enabled: true,
+        sourceImageUrl: imageUrl,
+        mode: '33grid'
+      });
+
+      // Auto-load the image
+      fetch(imageUrl)
+        .then(res => res.blob())
+        .then(blob => {
+          const file = new File([blob], 'external-image.jpg', { type: blob.type });
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const dataUrl = ev.target?.result as string;
+            const img = new Image();
+            img.onload = () => {
+              const w = img.naturalWidth;
+              const h = img.naturalHeight;
+              let ratioStr = '16:9';
+              if (Math.abs(w / h - 16 / 9) < 0.05) ratioStr = '16:9';
+              else if (Math.abs(w / h - 9 / 16) < 0.05) ratioStr = '9:16';
+              else if (Math.abs(w / h - 4 / 3) < 0.05) ratioStr = '4:3';
+              else if (Math.abs(w / h - 1) < 0.05) ratioStr = '1:1';
+
+              setState(prev => ({
+                ...prev,
+                referenceImage: file,
+                referenceImagePreview: dataUrl,
+                gridAspectRatio: ratioStr,
+                smartLayoutEnabled: true,
+                logicMode: 'CINEMATIC'
+              }));
+            };
+            img.src = dataUrl;
+          };
+          reader.readAsDataURL(file);
+        })
+        .catch(err => {
+          console.error('Failed to load external image:', err);
+        });
+    }
+  }, []);
+
+  // Function to send upscaled image back to opener
+  const sendToOpener = (imageUrl: string) => {
+    if (window.opener) {
+      window.opener.postMessage({
+        type: '33grid-complete',
+        imageUrl: imageUrl
+      }, '*');
+    }
+  };
+
 
   // Handlers
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -280,6 +348,11 @@ function App() {
         isGeneratingFinal: false,
         finalImageUrl: finalUrl
       }));
+
+      // If in external mode (33grid from Concept Art Editor), send back to opener
+      if (externalMode.enabled && externalMode.mode === '33grid') {
+        sendToOpener(finalUrl);
+      }
 
       // Send PostMessage
       window.parent.postMessage({
