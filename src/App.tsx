@@ -52,12 +52,12 @@ function App() {
       try {
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
-          const { url, metadata, timestamp } = JSON.parse(cached);
+          const { url, metadata, timestamp, aspectRatio } = JSON.parse(cached);
           const age = Date.now() - timestamp;
           const maxAge = 24 * 60 * 60 * 1000; // 24시간
 
-          if (age < maxAge) {
-            console.log('[Cache Hit on Load] Directly showing cached 33Grid result');
+          if (age < maxAge && url) {
+            console.log('[Cache Hit on Load] Directly showing cached 33Grid result, ratio:', aspectRatio);
             // 이미지도 로드하면서 캐시 결과 바로 표시
             fetch(imageUrl)
               .then(res => res.blob())
@@ -72,13 +72,20 @@ function App() {
                     referenceImagePreview: dataUrl,
                     previewGridUrl: url,
                     gridMetadata: metadata,
+                    gridAspectRatio: aspectRatio || '16:9',
                     smartLayoutEnabled: true,
                     logicMode: 'CINEMATIC'
                   }));
                 };
                 reader.readAsDataURL(file);
+              })
+              .catch(err => {
+                console.error('[Cache] Failed to load image for cache:', err);
               });
             return; // 캐시 있으면 여기서 종료
+          } else {
+            // 만료되거나 잘못된 캐시 삭제
+            localStorage.removeItem(cacheKey);
           }
         }
       } catch (e) {
@@ -402,10 +409,11 @@ function App() {
         const cacheData = {
           url: result.url,
           metadata: result.metadata,
+          aspectRatio: state.gridAspectRatio,
           timestamp: Date.now()
         };
         localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-        console.log('[Cache] Saved 33Grid result to cache');
+        console.log('[Cache] Saved 33Grid result to cache with ratio:', state.gridAspectRatio);
       } catch (e) {
         console.warn('[Cache] Error saving to cache:', e);
       }
