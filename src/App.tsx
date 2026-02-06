@@ -348,8 +348,10 @@ function App() {
       return Math.abs(hash).toString(36);
     };
     // 캐시 키 생성: 원본 이미지 URL 해시
+    // externalMode.sourceImageUrl은 URL 파라미터에서 가져온 값과 동일해야 함
     const imageIdentifier = externalMode.sourceImageUrl || state.referenceImage.name;
     const cacheKey = `33grid_${simpleHash(imageIdentifier)}`;
+    console.log('[Cache] Key generation - identifier:', imageIdentifier.substring(0, 50), '... key:', cacheKey);
 
     // 캐시 확인
     try {
