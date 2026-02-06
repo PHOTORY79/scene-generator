@@ -280,6 +280,36 @@ function App() {
   const handleGeneratePreview = async () => {
     if (!state.referenceImage) return;
 
+    // === 24시간 캐싱 로직 ===
+    // 캐시 키 생성: 이미지 이름 + 설정
+    const cacheKey = `33grid_cache_${state.referenceImage.name}_${state.gridAspectRatio}_${state.logicMode}_${state.selectedGenre || 'default'}`;
+
+    // 캐시 확인
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { url, metadata, timestamp } = JSON.parse(cached);
+        const age = Date.now() - timestamp;
+        const maxAge = 24 * 60 * 60 * 1000; // 24시간
+
+        if (age < maxAge) {
+          console.log('[Cache Hit] Using cached 33Grid result');
+          setState(prev => ({
+            ...prev,
+            previewGridUrl: url,
+            gridMetadata: metadata
+          }));
+          return;
+        } else {
+          // 만료된 캐시 삭제
+          localStorage.removeItem(cacheKey);
+        }
+      }
+    } catch (e) {
+      console.warn('[Cache] Error reading cache:', e);
+    }
+    // === 캐싱 로직 끝 ===
+
     setState(prev => ({ ...prev, isGeneratingPreview: true }));
     setStats(prev => ({ ...prev, previewCount: prev.previewCount + 1 }));
 
@@ -306,6 +336,20 @@ function App() {
         ratio,
         state.smartLayoutEnabled ? state.selectedGenre : undefined // Pass genre for CINEMATIC mode
       );
+
+      // === 캐시에 저장 ===
+      try {
+        const cacheData = {
+          url: result.url,
+          metadata: result.metadata,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        console.log('[Cache] Saved 33Grid result to cache');
+      } catch (e) {
+        console.warn('[Cache] Error saving to cache:', e);
+      }
+      // === 캐시 저장 끝 ===
 
       setState(prev => ({
         ...prev,
