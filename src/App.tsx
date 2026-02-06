@@ -37,7 +37,46 @@ function App() {
         mode: '33grid'
       });
 
-      // Auto-load the image
+      // === 캐시 확인 (이미지 로드 전) ===
+      const cacheKey = `33grid_cache_${btoa(imageUrl).substring(0, 32)}`;
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const { url, metadata, timestamp } = JSON.parse(cached);
+          const age = Date.now() - timestamp;
+          const maxAge = 24 * 60 * 60 * 1000; // 24시간
+
+          if (age < maxAge) {
+            console.log('[Cache Hit on Load] Directly showing cached 33Grid result');
+            // 이미지도 로드하면서 캐시 결과 바로 표시
+            fetch(imageUrl)
+              .then(res => res.blob())
+              .then(blob => {
+                const file = new File([blob], 'external-image.jpg', { type: blob.type });
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const dataUrl = ev.target?.result as string;
+                  setState(prev => ({
+                    ...prev,
+                    referenceImage: file,
+                    referenceImagePreview: dataUrl,
+                    previewGridUrl: url,
+                    gridMetadata: metadata,
+                    smartLayoutEnabled: true,
+                    logicMode: 'CINEMATIC'
+                  }));
+                };
+                reader.readAsDataURL(file);
+              });
+            return; // 캐시 있으면 여기서 종료
+          }
+        }
+      } catch (e) {
+        console.warn('[Cache] Error reading cache on load:', e);
+      }
+      // === 캐시 확인 끝 ===
+
+      // Auto-load the image (캐시 없을 때)
       fetch(imageUrl)
         .then(res => res.blob())
         .then(blob => {
@@ -281,8 +320,10 @@ function App() {
     if (!state.referenceImage) return;
 
     // === 24시간 캐싱 로직 ===
-    // 캐시 키 생성: 이미지 이름 + 설정
-    const cacheKey = `33grid_cache_${state.referenceImage.name}_${state.gridAspectRatio}_${state.logicMode}_${state.selectedGenre || 'default'}`;
+    // 캐시 키 생성: 원본 이미지 URL (해시) + 설정
+    // externalMode.sourceImageUrl이 있으면 그것을 사용, 없으면 파일명
+    const imageIdentifier = externalMode.sourceImageUrl || state.referenceImage.name;
+    const cacheKey = `33grid_cache_${btoa(imageIdentifier).substring(0, 32)}`;
 
     // 캐시 확인
     try {
@@ -293,7 +334,7 @@ function App() {
         const maxAge = 24 * 60 * 60 * 1000; // 24시간
 
         if (age < maxAge) {
-          console.log('[Cache Hit] Using cached 33Grid result');
+          console.log('[Cache Hit] Using cached 33Grid result for:', imageIdentifier);
           setState(prev => ({
             ...prev,
             previewGridUrl: url,
