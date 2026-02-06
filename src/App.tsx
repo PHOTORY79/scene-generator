@@ -38,7 +38,17 @@ function App() {
       });
 
       // === 캐시 확인 (이미지 로드 전) ===
-      const cacheKey = `33grid_cache_${btoa(imageUrl).substring(0, 32)}`;
+      // 간단한 해시 함수
+      const simpleHash = (str: string) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          const char = str.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return Math.abs(hash).toString(36);
+      };
+      const cacheKey = `33grid_${simpleHash(imageUrl)}`;
       try {
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
@@ -320,10 +330,19 @@ function App() {
     if (!state.referenceImage) return;
 
     // === 24시간 캐싱 로직 ===
-    // 캐시 키 생성: 원본 이미지 URL (해시) + 설정
-    // externalMode.sourceImageUrl이 있으면 그것을 사용, 없으면 파일명
+    // 간단한 해시 함수
+    const simpleHash = (str: string) => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      return Math.abs(hash).toString(36);
+    };
+    // 캐시 키 생성: 원본 이미지 URL 해시
     const imageIdentifier = externalMode.sourceImageUrl || state.referenceImage.name;
-    const cacheKey = `33grid_cache_${btoa(imageIdentifier).substring(0, 32)}`;
+    const cacheKey = `33grid_${simpleHash(imageIdentifier)}`;
 
     // 캐시 확인
     try {
