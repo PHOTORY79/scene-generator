@@ -37,63 +37,7 @@ function App() {
         mode: '33grid'
       });
 
-      // === 캐시 확인 (이미지 로드 전) ===
-      // 간단한 해시 함수
-      const simpleHash = (str: string) => {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-          const char = str.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & hash;
-        }
-        return Math.abs(hash).toString(36);
-      };
-      const cacheKey = `33grid_${simpleHash(imageUrl)}`;
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const { url, metadata, timestamp, aspectRatio } = JSON.parse(cached);
-          const age = Date.now() - timestamp;
-          const maxAge = 24 * 60 * 60 * 1000; // 24시간
-
-          if (age < maxAge && url) {
-            console.log('[Cache Hit on Load] Directly showing cached 33Grid result, ratio:', aspectRatio);
-            // 이미지도 로드하면서 캐시 결과 바로 표시
-            fetch(imageUrl)
-              .then(res => res.blob())
-              .then(blob => {
-                const file = new File([blob], 'external-image.jpg', { type: blob.type });
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                  const dataUrl = ev.target?.result as string;
-                  setState(prev => ({
-                    ...prev,
-                    referenceImage: file,
-                    referenceImagePreview: dataUrl,
-                    previewGridUrl: url,
-                    gridMetadata: metadata,
-                    gridAspectRatio: aspectRatio || '16:9',
-                    smartLayoutEnabled: true,
-                    logicMode: 'CINEMATIC'
-                  }));
-                };
-                reader.readAsDataURL(file);
-              })
-              .catch(err => {
-                console.error('[Cache] Failed to load image for cache:', err);
-              });
-            return; // 캐시 있으면 여기서 종료
-          } else {
-            // 만료되거나 잘못된 캐시 삭제
-            localStorage.removeItem(cacheKey);
-          }
-        }
-      } catch (e) {
-        console.warn('[Cache] Error reading cache on load:', e);
-      }
-      // === 캐시 확인 끝 ===
-
-      // Auto-load the image (캐시 없을 때)
+      // Auto-load the image
       fetch(imageUrl)
         .then(res => res.blob())
         .then(blob => {
@@ -336,49 +280,6 @@ function App() {
   const handleGeneratePreview = async () => {
     if (!state.referenceImage) return;
 
-    // === 24시간 캐싱 로직 ===
-    // 간단한 해시 함수
-    const simpleHash = (str: string) => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-      }
-      return Math.abs(hash).toString(36);
-    };
-    // 캐시 키 생성: 원본 이미지 URL 해시
-    // externalMode.sourceImageUrl은 URL 파라미터에서 가져온 값과 동일해야 함
-    const imageIdentifier = externalMode.sourceImageUrl || state.referenceImage.name;
-    const cacheKey = `33grid_${simpleHash(imageIdentifier)}`;
-    console.log('[Cache] Key generation - identifier:', imageIdentifier.substring(0, 50), '... key:', cacheKey);
-
-    // 캐시 확인
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const { url, metadata, timestamp } = JSON.parse(cached);
-        const age = Date.now() - timestamp;
-        const maxAge = 24 * 60 * 60 * 1000; // 24시간
-
-        if (age < maxAge) {
-          console.log('[Cache Hit] Using cached 33Grid result for:', imageIdentifier);
-          setState(prev => ({
-            ...prev,
-            previewGridUrl: url,
-            gridMetadata: metadata
-          }));
-          return;
-        } else {
-          // 만료된 캐시 삭제
-          localStorage.removeItem(cacheKey);
-        }
-      }
-    } catch (e) {
-      console.warn('[Cache] Error reading cache:', e);
-    }
-    // === 캐싱 로직 끝 ===
-
     setState(prev => ({ ...prev, isGeneratingPreview: true }));
     setStats(prev => ({ ...prev, previewCount: prev.previewCount + 1 }));
 
@@ -405,21 +306,6 @@ function App() {
         ratio,
         state.smartLayoutEnabled ? state.selectedGenre : undefined // Pass genre for CINEMATIC mode
       );
-
-      // === 캐시에 저장 ===
-      try {
-        const cacheData = {
-          url: result.url,
-          metadata: result.metadata,
-          aspectRatio: state.gridAspectRatio,
-          timestamp: Date.now()
-        };
-        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-        console.log('[Cache] Saved 33Grid result to cache with ratio:', state.gridAspectRatio);
-      } catch (e) {
-        console.warn('[Cache] Error saving to cache:', e);
-      }
-      // === 캐시 저장 끝 ===
 
       setState(prev => ({
         ...prev,
