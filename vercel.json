@@ -1,10 +1,6 @@
 {
     "rewrites": [
         {
-            "source": "/api/vidu/:path*",
-            "destination": "https://api.vidu.com/:path*"
-        },
-        {
             "source": "/(.*)",
             "destination": "/index.html"
         }

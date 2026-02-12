@@ -8,7 +8,7 @@ import type { SceneGeneratorState, UsageStats } from './types/sceneGenerator';
 import { determineLogicMode } from './utils/determineLogicMode';
 import { PreviewGrid } from './components/PreviewGrid';
 import { generatePreview, generateFinal, modifyImage } from './api/geminiApi';
-import { generateVideo } from './api/viduApi';
+
 
 function App() {
   const [state, setState] = useState<SceneGeneratorState>(initialState);
@@ -393,44 +393,7 @@ function App() {
     }
   };
 
-  const handleGenerateVideo = async () => {
-    // Determine Source Image based on User Selection and State Priority
-    let sourceImage = null;
 
-    if (state.uploadedForVideo) {
-      sourceImage = state.uploadedForVideo;
-    } else if (state.useGridAsSource && state.previewGridUrl) {
-      sourceImage = state.previewGridUrl; // Explicitly requested 9-Grid
-    } else {
-      // Default Fallback: Modified > Final > Preview
-      sourceImage = state.modifiedImageUrl || state.finalImageUrl || state.previewGridUrl;
-    }
-
-    if (!sourceImage) {
-      alert("No image available for video generation. Please generate a grid or upload an image.");
-      return;
-    }
-
-    setState(prev => ({ ...prev, isGeneratingVideo: true, videoUrl: null }));
-
-    try {
-      // Using Vidu Q3 Upgrade logic
-      const videoUrl = await generateVideo(
-        sourceImage,
-        state.videoPrompt || "Animate this scene naturally",
-        {
-          model: state.videoModel,
-          duration: state.videoDuration,
-          resolution: state.videoResolution
-        }
-      );
-      setState(prev => ({ ...prev, videoUrl, isGeneratingVideo: false }));
-    } catch (error: any) {
-      console.error("Video Generation Error:", error);
-      alert(`Video Generation Failed: ${error.message}`);
-      setState(prev => ({ ...prev, isGeneratingVideo: false }));
-    }
-  };
 
   const resetAll = () => {
     if (window.confirm("Start over? This will clear current progress.")) {
@@ -839,181 +802,11 @@ function App() {
         </div>
       </div>
 
-      {/* Video Generation Section (Vidu Q3 Studio) */}
-      <div className="max-w-2xl mx-auto bg-gray-800/50 p-6 rounded-2xl border border-white/10 mt-8">
-        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          <Film size={20} className="text-purple-400" />
-          Generate Video (VIDU)
-        </h3>
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
-          <h2 className="text-xl font-bold mb-4 text-purple-400 flex items-center">
-            <span className="mr-2">🎥</span> Video Studio (Vidu Q3 Pro)
-          </h2>
 
-          <div className="space-y-4">
-            {/* 1. Image Source Selection */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {/* Option A: Use Final Image (Default if exists) */}
-              {state.finalImageUrl && (
-                <button
-                  onClick={() => setState(prev => ({ ...prev, uploadedForVideo: null, useGridAsSource: false }))}
-                  className={`px-4 py-2 rounded text-sm font-bold transition-colors ${!state.uploadedForVideo && !state.useGridAsSource ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
-                >
-                  Use Final Result (1 Image)
-                </button>
-              )}
-
-              {/* Option B: Use 9-Grid Preview (Explicit Request) */}
-              {state.previewGridUrl && (
-                <button
-                  onClick={() => setState(prev => ({ ...prev, uploadedForVideo: null, useGridAsSource: true }))}
-                  className={`px-4 py-2 rounded text-sm font-bold transition-colors ${!state.uploadedForVideo && state.useGridAsSource ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}
-                >
-                  Use 9-Grid Preview
-                </button>
-              )}
-
-              {/* Option C: Upload Custom */}
-              <label className={`px-4 py-2 rounded text-sm font-bold cursor-pointer transition-colors ${state.uploadedForVideo ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/50' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
-                Upload Custom Image
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        setState(prev => ({ ...prev, uploadedForVideo: reader.result as string }));
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                />
-              </label>
-            </div>
-
-            {/* Image Preview Area */}
-            <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden border border-gray-600 flex items-center justify-center mb-6">
-              {/* Logic to determine what to show */}
-              {(() => {
-                let displayImage = null;
-                let label = "";
-
-                if (state.uploadedForVideo) {
-                  displayImage = state.uploadedForVideo;
-                  label = "Custom Upload";
-                } else if (state.useGridAsSource && state.previewGridUrl) {
-                  displayImage = state.previewGridUrl;
-                  label = "9-Grid Preview Source";
-                } else if (state.finalImageUrl || state.modifiedImageUrl) {
-                  displayImage = state.modifiedImageUrl || state.finalImageUrl;
-                  label = "Final / Modified Image";
-                } else if (state.previewGridUrl) {
-                  displayImage = state.previewGridUrl;
-                  label = "9-Grid Preview Source";
-                }
-
-                if (displayImage) {
-                  return (
-                    <>
-                      <img src={displayImage} alt="Source" className="max-h-full object-contain" />
-                      <div className="absolute top-2 left-2 bg-black/70 px-2 py-1 rounded text-xs text-white border border-white/20">
-                        Source: {label}
-                      </div>
-                    </>
-                  );
-                } else {
-                  return <span className="text-gray-500">No image available. Please generate or upload.</span>;
-                }
-              })()}
-            </div>
-
-            {/* 2. Prompt Input */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Video Prompt (Motion Description)
-              </label>
-              <textarea
-                value={state.videoPrompt}
-                onChange={(e) => setState(prev => ({ ...prev, videoPrompt: e.target.value }))}
-                placeholder="Describe the camera movement and subject action..."
-                className="w-full bg-gray-700 text-white rounded p-3 border border-gray-600 h-24 focus:ring-2 focus:ring-purple-500 outline-none"
-              />
-            </div>
-
-            {/* 3. Duration Selector */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Duration (Seconds)
-              </label>
-              <div className="flex space-x-2">
-                {[4, 8, 16].map(sec => (
-                  <button
-                    key={sec}
-                    onClick={() => setState(prev => ({ ...prev, videoDuration: sec }))}
-                    className={`px-4 py-2 rounded border ${state.videoDuration === sec ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'}`}
-                  >
-                    {sec}s
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Generate Button */}
-            <button
-              onClick={handleGenerateVideo}
-              disabled={state.isGeneratingVideo || (!state.finalImageUrl && !state.previewGridUrl && !state.uploadedForVideo)}
-              className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform hover:scale-[1.02] ${state.isGeneratingVideo || (!state.finalImageUrl && !state.previewGridUrl && !state.uploadedForVideo)
-                ? 'bg-gray-600 cursor-not-allowed text-gray-400'
-                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-900/50'
-                }`}
-            >
-              {state.isGeneratingVideo ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Generating Video (Vidu Q3)...
-                </span>
-              ) : (
-                "Generate Video ✨"
-              )}
-            </button>
-
-            {/* Result Video */}
-            {state.videoUrl && (
-              <div className="mt-6">
-                <h3 className="text-lg font-bold text-white mb-2">Generated Video Result</h3>
-                <video
-                  controls
-                  className="w-full rounded-lg shadow-lg border border-purple-500/30"
-                  src={state.videoUrl}
-                >
-                  Your browser does not support the video tag.
-                </video>
-                <div className="mt-2 text-center">
-                  <a
-                    href={state.videoUrl}
-                    download="vidu_generated_video.mp4"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-purple-400 hover:text-purple-300 underline text-sm"
-                  >
-                    Download Video
-                  </a>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
       <div className="flex justify-center gap-4 mt-8">
         <button
-          onClick={() => setState(prev => ({ ...prev, finalImageUrl: null, modifiedImageUrl: null, videoUrl: null, isGeneratingFinal: false, isModifying: false, isGeneratingVideo: false }))}
+          onClick={() => setState(prev => ({ ...prev, finalImageUrl: null, modifiedImageUrl: null, isGeneratingFinal: false, isModifying: false }))}
           className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium text-white flex items-center gap-2"
         >
           <ChevronRight className="rotate-180" size={18} /> Back to Selection

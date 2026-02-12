@@ -1,54 +1,64 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GENRE_PRESETS } from "../types/sceneGenerator";
 
-const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
-const genAI = new GoogleGenerativeAI(API_KEY);
+// ── Proxy 기반 Gemini API (직접 호출 대신 인증+과금 프록시 사용) ──
 
-// Helper to convert File to GenerativePart (base64)
-async function fileToGenerativePart(file: File): Promise<{ inlineData: { data: string; mimeType: string } }> {
+// 프록시 API 엔드포인트 (concept-art-editor 배포 URL)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://concept-art-aifi.vercel.app';
+
+// URL에서 토큰 추출
+function getAuthToken(): string {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('token') || '';
+}
+
+// Helper: File → base64 data URL
+async function fileToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onloadend = () => {
-            // reader.result is something like "data:image/jpeg;base64,....."
-            // We need just the base64 part
-            const base64Data = (reader.result as string).split(',')[1];
-            resolve({
-                inlineData: {
-                    data: base64Data,
-                    mimeType: file.type
-                }
-            });
-        };
+        reader.onloadend = () => resolve(reader.result as string);
         reader.onerror = reject;
         reader.readAsDataURL(file);
     });
 }
 
-/**
- * Extracts an image URL from the Gemini/Imagen response.
- * Handles cases where the model returns inline data (image/png) or a text URL.
- */
-async function extractImageFromResponse(response: any): Promise<string> {
-    const candidate = response.candidates?.[0];
-    const part = candidate?.content?.parts?.[0];
+// 공통 프록시 호출 함수
+async function callProxy(action: string, prompt: string, images: string[], pricingType?: string): Promise<string> {
+    const token = getAuthToken();
 
-    if (part?.inlineData) {
-        // Return base64 data URL
-        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    if (!token) {
+        throw new Error('인증 토큰이 없습니다. AIFI 에디터에서 Scene Generator를 열어주세요.');
     }
 
-    // Check if there is text that might be a URL
-    const text = response.text ? response.text() : '';
-    if (text && text.startsWith('http')) {
-        return text;
+    const response = await fetch(`${API_BASE_URL}/api/gemini-proxy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, prompt, images, pricingType, token }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+        if (response.status === 401) {
+            throw new Error('인증 만료. AIFI 에디터에서 다시 열어주세요.');
+        }
+        if (response.status === 402) {
+            throw new Error(`크레딧 부족 (잔액: ${data.creditBalance || 0})`);
+        }
+        throw new Error(data.error || 'API 호출 실패');
     }
 
-    throw new Error("No image data found in response");
+    // 크레딧 정보 콘솔에 표시
+    if (data.creditCost) {
+        console.log(`[Credit] ${action}: -${data.creditCost} (잔액: ${data.creditBalance})`);
+    }
+
+    return data.imageUrl;
 }
 
-// CINEMATIC mode prompt template (Smart Layout)
+// ── 프롬프트 빌더 (기존과 동일) ──
+
 function buildCinematicPrompt(genrePresetId: string, ratioLabel: string): string {
-    const genre = GENRE_PRESETS.find(g => g.id === genrePresetId) || GENRE_PRESETS[1]; // Default: cinematic
+    const genre = GENRE_PRESETS.find(g => g.id === genrePresetId) || GENRE_PRESETS[1];
 
     return `[ROLE]
 You are a veteran cinematographer creating a professional shot breakdown.
@@ -169,7 +179,6 @@ cartoon style, illustration style, anime style,
 painting style, sketch style, low quality, blurry`;
 }
 
-// STORY mode prompt template
 function buildStoryPrompt(storyLine: string, ratioLabel: string): string {
     return `[ROLE]
 You are a Visual Director creating a storyboard based on a specific narrative.
@@ -202,6 +211,8 @@ The overall canvas aspect ratio must be ${ratioLabel}.
 different person, changed identity, wrong clothes, cartoon, illustration, text, watermark, borders, speech bubbles`;
 }
 
+// ── 공개 API 함수들 ──
+
 export async function generatePreview(
     referenceImage: File,
     logicMode: string,
@@ -210,33 +221,18 @@ export async function generatePreview(
     width: number,
     height: number,
     ratioLabel: string,
-    genrePresetId?: string // For CINEMATIC mode
+    genrePresetId?: string
 ): Promise<{ url: string; metadata: any[] }> {
-    // 1. gemini-3-pro-image-preview (Nano Banana Pro)
-    // 2. imagen-3.0-generate-001 (fallback)
-    // Updated to use confirmed available models
-    const modelsToTry = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
-    let lastError = null;
+    // 이미지를 base64로 변환
+    const imageBase64 = await fileToBase64(referenceImage);
 
-    let imagePart;
-    try {
-        imagePart = await fileToGenerativePart(referenceImage);
-    } catch (e) {
-        console.error("Failed to process reference image:", e);
-        throw new Error("Failed to process reference image");
-    }
-
-    // Build prompt based on mode
+    // 프롬프트 생성
     let prompt: string;
-
     if (logicMode === 'CINEMATIC' && genrePresetId) {
-        // Smart Layout mode - use cinematic prompt template
         prompt = buildCinematicPrompt(genrePresetId, ratioLabel);
     } else if (logicMode === 'STORY') {
-        // Story Mode
         prompt = buildStoryPrompt(contextPrompt, ratioLabel);
     } else {
-        // Original mode (LINEAR/MATRIX/DYNAMIC)
         prompt = `IMPORTANT CONSTRAINT: The final output image must be a 3x3 grid. The overall canvas aspect ratio must match ${ratioLabel} (e.g., 16:9). Do NOT generate a square image if 16:9 is requested. Fill the entire width.
 
     [Grid Composition]
@@ -261,80 +257,41 @@ export async function generatePreview(
     Return the generated image directly.`;
     }
 
-    for (const modelName of modelsToTry) {
-        try {
-            console.log(`[Gemini API] Generating Preview with model: ${modelName} (${width}x${height}), Mode: ${logicMode}`);
+    console.log(`[Gemini Proxy] Generating Preview, Mode: ${logicMode}, Size: ${width}x${height}`);
 
-            const model = genAI.getGenerativeModel({ model: modelName });
+    const imageUrl = await callProxy('generatePreview', prompt, [imageBase64], 'grid_story');
 
-            const result = await model.generateContent([prompt, imagePart]);
-            const response = await result.response;
-
-            const imageUrl = await extractImageFromResponse(response);
-
-            // Build metadata based on mode
-            const metadata = (logicMode === 'CINEMATIC' || logicMode === 'STORY')
-                ? [
-                    // For Story mode, we don't have predetermined shots, so we label generously
-                    { cell: 0, shot: 'Story Shot 1', angle: 'Visual Storytelling' },
-                    { cell: 1, shot: 'Story Shot 2', angle: 'Visual Storytelling' },
-                    { cell: 2, shot: 'Story Shot 3', angle: 'Visual Storytelling' },
-                    { cell: 3, shot: 'Story Shot 4', angle: 'Visual Storytelling' },
-                    { cell: 4, shot: 'Story Shot 5', angle: 'Visual Storytelling' },
-                    { cell: 5, shot: 'Story Shot 6', angle: 'Visual Storytelling' },
-                    { cell: 6, shot: 'Story Shot 7', angle: 'Visual Storytelling' },
-                    { cell: 7, shot: 'Story Shot 8', angle: 'Visual Storytelling' },
-                    { cell: 8, shot: 'Story Shot 9', angle: 'Visual Storytelling' }
-                ]
-                : Array.from({ length: 9 }).map((_, i) => ({
-                    cell: i,
-                    angle: 'AI Generated',
-                    shot: 'AI Generated',
-                    expression: 'AI Generated'
-                }));
-
-            // If it was strictly CINEMATIC (Smart Layout), override with specific labels if possible, 
-            // but the above block covers both generally. 
-            // Let's refine for CINEMATIC specifically if needed to match previous exact map.
-            if (logicMode === 'CINEMATIC') {
-                // Restore the exact cinematic map
-                return {
-                    url: imageUrl,
-                    metadata: [
-                        { cell: 0, shot: 'Extreme Long Shot', angle: 'Eye Level' },
-                        { cell: 1, shot: 'Long Shot', angle: 'Eye Level' },
-                        { cell: 2, shot: 'Medium Long Shot', angle: 'Eye Level' },
-                        { cell: 3, shot: 'Medium Shot', angle: 'Eye Level' },
-                        { cell: 4, shot: 'Medium Close-Up', angle: 'Eye Level' },
-                        { cell: 5, shot: 'Close-Up', angle: 'Eye Level' },
-                        { cell: 6, shot: 'Extreme Close-Up', angle: 'Eye Level' },
-                        { cell: 7, shot: 'Medium Shot', angle: 'Low Angle' },
-                        { cell: 8, shot: 'Medium Shot', angle: 'High Angle' }
-                    ]
-                };
-            }
-
-            // Success
-            return {
-                url: imageUrl,
-                metadata
-            };
-
-        } catch (err: any) {
-            console.warn(`[Gemini API] Model ${modelName} failed:`, err);
-            lastError = err;
-        }
+    // 메타데이터 빌드
+    if (logicMode === 'CINEMATIC') {
+        return {
+            url: imageUrl,
+            metadata: [
+                { cell: 0, shot: 'Extreme Long Shot', angle: 'Eye Level' },
+                { cell: 1, shot: 'Long Shot', angle: 'Eye Level' },
+                { cell: 2, shot: 'Medium Long Shot', angle: 'Eye Level' },
+                { cell: 3, shot: 'Medium Shot', angle: 'Eye Level' },
+                { cell: 4, shot: 'Medium Close-Up', angle: 'Eye Level' },
+                { cell: 5, shot: 'Close-Up', angle: 'Eye Level' },
+                { cell: 6, shot: 'Extreme Close-Up', angle: 'Eye Level' },
+                { cell: 7, shot: 'Medium Shot', angle: 'Low Angle' },
+                { cell: 8, shot: 'Medium Shot', angle: 'High Angle' }
+            ]
+        };
     }
 
-    // All failed
-    // All failed
-    const errorMsg = lastError?.message || "All models failed";
-    alert(`Generation failed. Details: ${errorMsg}`);
-    throw lastError || new Error("All models failed");
+    const metadata = (logicMode === 'STORY')
+        ? Array.from({ length: 9 }).map((_, i) => ({
+            cell: i, shot: `Story Shot ${i + 1}`, angle: 'Visual Storytelling'
+        }))
+        : Array.from({ length: 9 }).map((_, i) => ({
+            cell: i, angle: 'AI Generated', shot: 'AI Generated', expression: 'AI Generated'
+        }));
+
+    return { url: imageUrl, metadata };
 }
 
 export async function generateFinal(
-    _previewUrl: string, // Kept for reference, but we use strict inputs now
+    _previewUrl: string,
     _cellIndex: number,
     resolution: string,
     aspectRatio: string,
@@ -342,28 +299,7 @@ export async function generateFinal(
     croppedImageBase64: string,
     contextPrompt?: string
 ): Promise<string> {
-    const modelsToTry = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
-    let lastError = null;
-
-    // 1. Original Image (Character/Style Reference)
-    let originalPart;
-    try {
-        originalPart = await fileToGenerativePart(originalImage);
-    } catch (e) {
-        throw new Error("Failed to process original image");
-    }
-
-    // 2. Cropped Image (Composition Reference)
-    // croppedImageBase64 is already a data URL or raw base64? 
-    // Helpers usually return data URL "data:image/png;base64,..."
-    // We need to parse it if passing as inlineData
-    const cropData = croppedImageBase64.split(',')[1] || croppedImageBase64;
-    const croppedPart = {
-        inlineData: {
-            data: cropData,
-            mimeType: "image/png"
-        }
-    };
+    const originalBase64 = await fileToBase64(originalImage);
 
     const prompt = `DO NOT generate a new random scene. 
     STRICTLY UPSCALING TASK: Look at Image 2 (The Cropped Patch). 
@@ -373,66 +309,28 @@ export async function generateFinal(
     Aspect Ratio: ${aspectRatio}
     Context: ${contextPrompt || ''}`;
 
-    for (const modelName of modelsToTry) {
-        try {
-            console.log(`[Gemini API] Generating Final with model: ${modelName}`);
-            const model = genAI.getGenerativeModel({ model: modelName });
+    console.log(`[Gemini Proxy] Generating Final`);
 
-            // STRICT ORDER: Original, Cropped, Prompt
-            const result = await model.generateContent([
-                originalPart, // Image 1
-                croppedPart,  // Image 2
-                prompt
-            ]);
-            const response = await result.response;
-
-            return await extractImageFromResponse(response);
-
-        } catch (err: any) {
-            console.warn(`[Gemini API] Model ${modelName} failed:`, err);
-            lastError = err;
-        }
-    }
-
-    const errorMsg = lastError?.message || "All models failed";
-    alert(`Generation failed. Details: ${errorMsg}`);
-    throw lastError || new Error("All models failed");
+    return await callProxy('generateFinal', prompt, [originalBase64, croppedImageBase64], 'upscale');
 }
 
 export async function modifyImage(
     sourceImageUrl: string,
     modificationPrompt: string
 ): Promise<string> {
-    const modelsToTry = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
-    let lastError = null;
-
-    // Convert source URL to base64 Part
-    // If it's a blob URL or remote URL, we need to fetch it first
-    let imagePart;
-    try {
+    // URL이면 fetch 후 base64 변환
+    let imageBase64: string;
+    if (sourceImageUrl.startsWith('data:')) {
+        imageBase64 = sourceImageUrl;
+    } else {
         const response = await fetch(sourceImageUrl);
         const blob = await response.blob();
-
-        // Convert blob to base64
-        const reader = new FileReader();
-        const base64Promise = new Promise<{ inlineData: { data: string; mimeType: string } }>((resolve, reject) => {
-            reader.onloadend = () => {
-                const base64Data = (reader.result as string).split(',')[1];
-                resolve({
-                    inlineData: {
-                        data: base64Data,
-                        mimeType: blob.type
-                    }
-                });
-            };
+        imageBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
             reader.onerror = reject;
+            reader.readAsDataURL(blob);
         });
-        reader.readAsDataURL(blob);
-        imagePart = await base64Promise;
-
-    } catch (e) {
-        console.error("Failed to fetch source image:", e);
-        throw new Error("Failed to process source image for modification");
     }
 
     const prompt = `[IMAGE MODIFICATION TASK]
@@ -446,26 +344,7 @@ export async function modifyImage(
     - Photorealistic quality.
     - Return the modified image.`;
 
-    for (const modelName of modelsToTry) {
-        try {
-            console.log(`[Gemini API] Modifying Image with model: ${modelName}`);
-            const model = genAI.getGenerativeModel({ model: modelName });
+    console.log(`[Gemini Proxy] Modifying Image`);
 
-            const result = await model.generateContent([
-                imagePart,
-                prompt
-            ]);
-            const response = await result.response;
-
-            return await extractImageFromResponse(response);
-
-        } catch (err: any) {
-            console.warn(`[Gemini API] Model ${modelName} failed:`, err);
-            lastError = err;
-        }
-    }
-
-    const errorMsg = lastError?.message || "All models failed";
-    alert(`Modification failed. Details: ${errorMsg}`);
-    throw lastError || new Error("All models failed");
+    return await callProxy('modifyImage', prompt, [imageBase64], 'img_edit');
 }
