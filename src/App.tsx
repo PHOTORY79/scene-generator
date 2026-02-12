@@ -583,7 +583,7 @@ function App() {
             }`}
         >
           {state.isGeneratingPreview ? <RefreshCw className="animate-spin" /> : state.smartLayoutEnabled ? <Sparkles /> : state.storyModeEnabled ? <Film /> : <Zap fill="currentColor" />}
-          {state.isGeneratingPreview ? 'Generating Preview...' : state.storyModeEnabled ? 'Generate Story Grid (1 Credit)' : 'Generate 3x3 Preview (1 Credit)'}
+          {state.isGeneratingPreview ? 'Generating Preview...' : state.storyModeEnabled ? 'Generate Story Grid' : 'Generate 3x3 Preview'}
         </button>
       </div>
     </div>
@@ -639,8 +639,8 @@ function App() {
                 {(['1K', '2K', '4K'] as const).map(res => (
                   <button
                     key={res}
-                    onClick={() => setState(p => ({ ...p, outputResolution: res }))}
-                    className={`py-2 rounded-lg text-sm font-medium transition-colors ${state.outputResolution === res ? 'bg-white text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                    disabled
+                    className={`py-2 rounded-lg text-sm font-medium transition-colors cursor-not-allowed ${state.outputResolution === res ? 'bg-gray-600 text-gray-400' : 'bg-gray-800 text-gray-600'}`}
                   >
                     {res}
                   </button>
@@ -674,7 +674,7 @@ function App() {
             }`}
         >
           {state.isGeneratingFinal ? <RefreshCw className="animate-spin" /> : <Download size={20} />}
-          {state.isGeneratingFinal ? 'Upscaling...' : 'Generate Final Image (1 Credit)'}
+          {state.isGeneratingFinal ? 'Upscaling...' : 'Generate Final Image'}
         </button>
 
         {state.selectedCellIndex !== null && (
@@ -797,7 +797,7 @@ function App() {
               }`}
           >
             {state.isModifying ? <RefreshCw className="animate-spin" /> : <Sparkles size={18} />}
-            {state.isModifying ? 'Modifying...' : 'Apply Modification (1 Credit)'}
+            {state.isModifying ? 'Modifying...' : 'Apply Modification'}
           </button>
         </div>
       </div>
