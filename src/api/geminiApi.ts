@@ -21,6 +21,50 @@ async function fileToBase64(file: File): Promise<string> {
     });
 }
 
+// Helper: base64 이미지를 리사이즈 + JPEG 압축 (Vercel 4.5MB body 제한 대응)
+const MAX_IMAGE_DIMENSION = 1024;
+const JPEG_QUALITY = 0.7;
+const MAX_SINGLE_IMAGE_BYTES = 1_500_000; // 1.5MB per image
+
+async function compressImage(base64DataUrl: string): Promise<string> {
+    // base64가 아닌 경우 (URL 등) 그대로 반환
+    if (!base64DataUrl.startsWith('data:')) return base64DataUrl;
+
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            let { width, height } = img;
+            // 긴 변이 MAX_IMAGE_DIMENSION 이하가 되도록 리사이즈
+            if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+                const scale = MAX_IMAGE_DIMENSION / Math.max(width, height);
+                width = Math.round(width * scale);
+                height = Math.round(height * scale);
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d')!;
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // 품질을 단계적으로 낮춰서 크기 제한 충족
+            let quality = JPEG_QUALITY;
+            let result = canvas.toDataURL('image/jpeg', quality);
+            while (result.length > MAX_SINGLE_IMAGE_BYTES * 1.37 && quality > 0.3) {
+                quality -= 0.1;
+                result = canvas.toDataURL('image/jpeg', quality);
+            }
+
+            const originalKB = Math.round(base64DataUrl.length / 1024);
+            const compressedKB = Math.round(result.length / 1024);
+            console.log(`[Compress] ${img.naturalWidth}x${img.naturalHeight} → ${width}x${height}, ${originalKB}KB → ${compressedKB}KB (q=${quality.toFixed(1)})`);
+            resolve(result);
+        };
+        img.onerror = () => reject(new Error('이미지 로드 실패'));
+        img.src = base64DataUrl;
+    });
+}
+
 // 공통 프록시 호출 함수
 async function callProxy(action: string, prompt: string, images: string[], pricingType?: string): Promise<string> {
     const token = getAuthToken();
@@ -29,10 +73,13 @@ async function callProxy(action: string, prompt: string, images: string[], prici
         throw new Error('인증 토큰이 없습니다. AIFI 에디터에서 Scene Generator를 열어주세요.');
     }
 
+    // Vercel body 크기 제한(4.5MB) 대응: 이미지 압축
+    const compressedImages = await Promise.all(images.map(img => compressImage(img)));
+
     const response = await fetch(`${API_BASE_URL}/api/gemini-proxy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, prompt, images, pricingType, token }),
+        body: JSON.stringify({ action, prompt, images: compressedImages, pricingType, token }),
     });
 
     const data = await response.json();
