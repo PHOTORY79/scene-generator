@@ -60,6 +60,7 @@ function App() {
                 referenceImage: file,
                 referenceImagePreview: dataUrl,
                 gridAspectRatio: ratioStr,
+                outputAspectRatio: (ratioStr === '9:16' || ratioStr === '16:9' || ratioStr === '1:1' || ratioStr === '4:3' || ratioStr === '3:4' || ratioStr === '21:9') ? ratioStr as any : '16:9',
                 smartLayoutEnabled: true,
                 logicMode: 'CINEMATIC'
               }));
@@ -119,7 +120,8 @@ function App() {
             ...prev,
             referenceImage: file,
             referenceImagePreview: dataUrl,
-            gridAspectRatio: ratioStr
+            gridAspectRatio: ratioStr,
+            outputAspectRatio: (ratioStr === '9:16' || ratioStr === '16:9' || ratioStr === '1:1' || ratioStr === '4:3' || ratioStr === '3:4' || ratioStr === '21:9') ? ratioStr as any : '16:9',
           }));
         };
         img.src = dataUrl;
