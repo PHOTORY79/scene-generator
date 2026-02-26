@@ -605,41 +605,7 @@ function App() {
           Select Your Best Shot <span className="text-sm font-normal text-gray-400 bg-gray-800 px-2 py-1 rounded-full">Grid View</span>
         </h2>
 
-        {/* 무료 그리드 생성 알림 */}
-        {showFreeNotice && (
-          <div
-            className="p-4 rounded-lg text-sm relative"
-            style={{
-              background: 'linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(59, 130, 246, 0.15))',
-              border: '1px solid rgba(52, 211, 153, 0.3)',
-            }}
-          >
-            <button
-              onClick={() => setShowFreeNotice(false)}
-              className="absolute top-2 right-2 text-xs text-gray-400 hover:text-white"
-            >✕</button>
-            <div className="flex items-center gap-2 mb-1 font-medium text-white">
-              <span className="text-lg">🎁</span>
-              <span>무료 생성 혜택!</span>
-            </div>
-            <p className="text-xs text-gray-300 mb-2">
-              이번 그리드 생성은 무료로 제공되었습니다. (2회 중 1회 무료)
-            </p>
-            <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer hover:text-gray-200">
-              <input
-                type="checkbox"
-                className="rounded"
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    localStorage.setItem('hideGridFreeNotice', 'true');
-                    setShowFreeNotice(false);
-                  }
-                }}
-              />
-              다시 보지 않기
-            </label>
-          </div>
-        )}
+
         {/* Applied Variations */}
         <div className="flex flex-wrap gap-2">
           {state.selectedCategories.angle && <span className="px-3 py-1 bg-blue-600/20 border border-blue-500 text-blue-300 text-xs rounded-full">📐 앵글 변경</span>}
@@ -920,6 +886,53 @@ function App() {
 
         {state.finalImageUrl && renderResult()}
       </main>
+
+      {/* 무료 그리드 생성 모달 */}
+      {showFreeNotice && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            className="relative w-80 p-6 rounded-2xl shadow-2xl bg-gray-900"
+            style={{ border: '1px solid rgba(52, 211, 153, 0.3)' }}
+          >
+            <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl"
+              style={{ background: 'linear-gradient(90deg, #34d399, #3b82f6)' }} />
+
+            <div className="text-center">
+              <div className="text-4xl mb-3">🎁</div>
+              <h3 className="text-lg font-bold text-white mb-2">무료 생성 혜택!</h3>
+              <p className="text-sm text-gray-400 mb-4">
+                이번 그리드 생성은 무료로 제공되었습니다.<br />
+                <span className="text-xs opacity-70">(2회 중 1회 무료)</span>
+              </p>
+
+              <button
+                onClick={() => setShowFreeNotice(false)}
+                className="w-full py-2.5 rounded-lg font-medium text-sm text-white mb-3"
+                style={{ background: 'linear-gradient(135deg, #34d399, #3b82f6)' }}
+              >
+                확인
+              </button>
+
+              <label className="flex items-center justify-center gap-1.5 text-xs text-gray-500 cursor-pointer hover:text-gray-300">
+                <input
+                  type="checkbox"
+                  className="rounded"
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      localStorage.setItem('hideGridFreeNotice', 'true');
+                      setShowFreeNotice(false);
+                    }
+                  }}
+                />
+                다시 보지 않기
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
