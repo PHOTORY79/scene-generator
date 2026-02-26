@@ -106,10 +106,29 @@ async function callProxy(action: string, prompt: string, images: string[], prici
 
 function buildCinematicPrompt(genrePresetId: string, ratioLabel: string): string {
     const genre = GENRE_PRESETS.find(g => g.id === genrePresetId) || GENRE_PRESETS[1];
+    const isPortrait = ratioLabel === '9:16';
+
+    const portraitBlock = isPortrait ? `
+⚠️⚠️⚠️ CRITICAL: This MUST be a PORTRAIT (VERTICAL) image — TALLER than wide, like a phone screen.
+The output canvas MUST be approximately 1080 × 1920 pixels (width × height). WIDTH must be LESS than HEIGHT.
+DO NOT produce a landscape/horizontal image. DO NOT produce a square image. PORTRAIT ONLY.
+Each of the 9 panels MUST also be in portrait orientation (taller than wide).
+Frame each panel like a vertical phone photo: characters fill the frame top-to-bottom.
+` : '';
+
+    const portraitPanelNote = isPortrait ? ' Frame this as a vertical portrait shot.' : '';
+    const portraitForbidden = isPortrait ? `
+- ABSOLUTELY FORBIDDEN: Generating a landscape (horizontal/wider-than-tall) image
+- ABSOLUTELY FORBIDDEN: Generating a square image` : '';
+    const portraitFinalCheck = isPortrait ? `
+
+[FINAL CHECK — PORTRAIT ORIENTATION]
+⚠️ Before outputting, verify: Is the image TALLER than it is WIDE?
+If YES → proceed. If NO → regenerate in portrait orientation (1080×1920).` : '';
 
     return `[ROLE]
 You are a veteran cinematographer creating a professional shot breakdown.
-
+${portraitBlock}
 [REFERENCE - IMMUTABLE]
 The FIRST IMAGE is your ONLY source of truth.
 This is the ABSOLUTE REFERENCE for all visual elements.
@@ -137,35 +156,41 @@ Apply framing rules based on detected subject type:
 
 IF person:
   - Maintain consistent facial features across all 9 shots
-  - ECU focuses on eyes with catchlight OR emotional detail
+  - ECU focuses on eyes with catchlight OR emotional detail${portraitPanelNote}
 
 IF couple:
   - Keep both subjects in frame for all shots (except ECU)
   - Preserve spatial relationship and interaction
-  - ECU: intertwined hands OR shared gaze point
+  - ECU: intertwined hands OR shared gaze point${portraitPanelNote}
 
 IF group:
   - Maintain all group members visible (except ECU)
   - Preserve group dynamics and positioning
-  - ECU: central interaction point OR leader's expression
+  - ECU: central interaction point OR leader's expression${portraitPanelNote}
 
 IF vehicle:
   - Show complete vehicle in wider shots
   - CU: front grille / headlights
-  - ECU: emblem / wheel detail / surface texture
+  - ECU: emblem / wheel detail / surface texture${portraitPanelNote}
 
 IF object/product:
   - Frame complete object in wider shots
   - Emphasize form and material
-  - ECU: logo / texture / unique design element
+  - ECU: logo / texture / unique design element${portraitPanelNote}
 
 IF animal:
   - Maintain species characteristics
-  - ECU: eyes OR fur/feather texture
+  - ECU: eyes OR fur/feather texture${portraitPanelNote}
 
 [GENERATION TASK]
 Create a SINGLE IMAGE containing a 3x3 grid with exactly 9 panels.
-The overall canvas aspect ratio must match ${ratioLabel}.
+The overall canvas aspect ratio must match ${ratioLabel}.${isPortrait ? `
+⚠️ MANDATORY PORTRAIT ORIENTATION: The output image MUST be VERTICAL (TALLER than wide)
+Target resolution: approximately 1080 pixels wide × 1920 pixels tall
+The WIDTH of the image MUST be SMALLER than the HEIGHT
+Each of the 9 panels is also in portrait orientation (taller than wide)
+Frame each panel like a vertical phone photo: characters fill the frame top-to-bottom, close-ups show head-to-chest vertically
+Think of it as a phone wallpaper divided into 9 vertical sections` : ''}
 
 Grid Structure:
 ┌─────────────────────────────────────────────────────┐
@@ -214,7 +239,7 @@ Apply this style CONSISTENTLY across all 9 panels.
 - Text, labels, numbers, or annotations
 - Watermarks or signatures
 - Cartoon or illustration style
-- Multiple characters unless present in reference
+- Multiple characters unless present in reference${portraitForbidden}
 
 [NEGATIVE PROMPT]
 different person, changed identity, altered face, different clothes, 
@@ -223,13 +248,29 @@ inconsistent lighting, deformed features, distorted proportions,
 frame borders, panel borders, grid lines, text overlay, 
 labels, numbers, watermark, signature, logo,
 cartoon style, illustration style, anime style, 
-painting style, sketch style, low quality, blurry`;
+painting style, sketch style, low quality, blurry${portraitFinalCheck}`;
 }
 
 function buildStoryPrompt(storyLine: string, ratioLabel: string): string {
+    const isPortrait = ratioLabel === '9:16';
+
+    const portraitBlock = isPortrait ? `
+⚠️⚠️⚠️ CRITICAL: This MUST be a PORTRAIT (VERTICAL) image — TALLER than wide, like a phone screen.
+The output canvas MUST be approximately 1080 × 1920 pixels (width × height). WIDTH must be LESS than HEIGHT.
+DO NOT produce a landscape/horizontal image. DO NOT produce a square image. PORTRAIT ONLY.
+Each of the 9 panels MUST also be in portrait orientation (taller than wide).
+Frame each panel like a vertical phone photo: characters fill the frame top-to-bottom.
+` : '';
+
+    const portraitFinalCheck = isPortrait ? `
+
+[FINAL CHECK — PORTRAIT ORIENTATION]
+⚠️ Before outputting, verify: Is the image TALLER than it is WIDE?
+If YES → proceed. If NO → regenerate in portrait orientation (1080×1920).` : '';
+
     return `[ROLE]
 You are a Visual Director creating a storyboard based on a specific narrative.
-
+${portraitBlock}
 [REFERENCE - IMMUTABLE]
 The FIRST IMAGE is your ONLY visual source for the character's appearance (face, hair, clothes).
 You MUST maintain the character's identity exactly as shown in the reference image.
@@ -240,10 +281,14 @@ Story Line: "${storyLine}"
 [TASK]
 Create a single image containing a 3x3 grid (9 panels) that visualizes this story line.
 The 9 panels should represent a sequence of key moments or a variety of shots that best depict the atmosphere and action of the provided story line.
-The overall canvas aspect ratio must be ${ratioLabel}.
+The overall canvas aspect ratio must be ${ratioLabel}.${isPortrait ? `
+⚠️ MANDATORY PORTRAIT ORIENTATION: The output image MUST be VERTICAL (TALLER than wide)
+Target resolution: approximately 1080 pixels wide × 1920 pixels tall
+Each of the 9 panels is also in portrait orientation (taller than wide)
+Frame each panel like a vertical phone photo` : ''}
 
 [GRID CONTENTS]
-- Each panel should show a distinct beat or angle related to the story.
+- Each panel should show a distinct beat or angle related to the story.${isPortrait ? ' Frame each panel as a vertical portrait shot.' : ''}
 - Use a mix of shot distances (Wide, Medium, Close-up) to create visual interest.
 - Ensure the character's emotion matches the story context in each panel.
 
@@ -252,10 +297,12 @@ The overall canvas aspect ratio must be ${ratioLabel}.
 - Photorealistic style.
 - Cinematic lighting and composition.
 - Seamless grid layout (no borders).
-- No text or speech bubbles.
+- No text or speech bubbles.${isPortrait ? `
+- ABSOLUTELY FORBIDDEN: Generating a landscape (horizontal/wider-than-tall) image
+- ABSOLUTELY FORBIDDEN: Generating a square image` : ''}
 
 [NEGATIVE PROMPT]
-different person, changed identity, wrong clothes, cartoon, illustration, text, watermark, borders, speech bubbles`;
+different person, changed identity, wrong clothes, cartoon, illustration, text, watermark, borders, speech bubbles${portraitFinalCheck}`;
 }
 
 // ── 공개 API 함수들 ──
@@ -280,20 +327,35 @@ export async function generatePreview(
     } else if (logicMode === 'STORY') {
         prompt = buildStoryPrompt(contextPrompt, ratioLabel);
     } else {
-        prompt = `IMPORTANT CONSTRAINT: The final output image must be a 3x3 grid. The overall canvas aspect ratio must match ${ratioLabel} (e.g., 16:9). Do NOT generate a square image if 16:9 is requested. Fill the entire width.
+        const isPortraitMatrix = ratioLabel === '9:16';
+        const portraitConstraint = isPortraitMatrix
+            ? `IMPORTANT CONSTRAINT: The final output image must be a 3x3 grid. The overall canvas aspect ratio must be 9:16 (PORTRAIT — TALLER than wide, like a phone screen).
+⚠️⚠️⚠️ CRITICAL: This MUST be a PORTRAIT (VERTICAL) image. The output canvas MUST be approximately 1080 × 1920 pixels.
+DO NOT produce a landscape/horizontal image. DO NOT produce a square image. PORTRAIT ONLY.
+Each of the 9 panels MUST also be in portrait orientation (taller than wide). Frame each panel like a vertical phone photo.`
+            : `IMPORTANT CONSTRAINT: The final output image must be a 3x3 grid. The overall canvas aspect ratio must match ${ratioLabel} (e.g., 16:9). Do NOT generate a square image if 16:9 is requested. Fill the entire width.`;
+
+        const portraitPanelSuffix = isPortraitMatrix ? ' Frame as a vertical portrait shot.' : '';
+        const portraitFinalCheck = isPortraitMatrix ? `
+
+    [FINAL CHECK — PORTRAIT ORIENTATION]
+    ⚠️ Before outputting, verify: Is the image TALLER than it is WIDE?
+    If YES → proceed. If NO → regenerate in portrait orientation (1080×1920).` : '';
+
+        prompt = `${portraitConstraint}
 
     [Grid Composition]
     Generate a 3x3 grid where each panel STRICTLY follows this shot progression to show diverse distances:
 
-    1. Extreme Close-up (Focus on Eyes/Details)
-    2. Close-up (Face only)
-    3. Over-the-Shoulder (OTS) - Added for depth
-    4. Medium Close-up (Chest up)
-    5. Medium Shot (Waist up)
-    6. Cowboy Shot (Thighs up)
-    7. Full Shot (Whole body)
-    8. Wide Shot (Subject + Surroundings)
-    9. Extreme Wide Shot (Vast landscape/Establishing)
+    1. Extreme Close-up (Focus on Eyes/Details)${portraitPanelSuffix}
+    2. Close-up (Face only)${portraitPanelSuffix}
+    3. Over-the-Shoulder (OTS) - Added for depth${portraitPanelSuffix}
+    4. Medium Close-up (Chest up)${portraitPanelSuffix}
+    5. Medium Shot (Waist up)${portraitPanelSuffix}
+    6. Cowboy Shot (Thighs up)${portraitPanelSuffix}
+    7. Full Shot (Whole body)${portraitPanelSuffix}
+    8. Wide Shot (Subject + Surroundings)${portraitPanelSuffix}
+    9. Extreme Wide Shot (Vast landscape/Establishing)${portraitPanelSuffix}
 
     Ensure each panel distinctly represents these distances.
 
@@ -301,7 +363,7 @@ export async function generatePreview(
     Logic Mode: ${logicMode}
     Selected Categories: ${selectedCategories.join(', ')}
     Context: ${contextPrompt}
-    Return the generated image directly.`;
+    Return the generated image directly.${portraitFinalCheck}`;
     }
 
     console.log(`[Gemini Proxy] Generating Preview, Mode: ${logicMode}, Size: ${width}x${height}`);
