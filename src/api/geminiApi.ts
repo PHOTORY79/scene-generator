@@ -370,7 +370,7 @@ Each of the 9 panels MUST also be in portrait orientation (taller than wide). Fr
 
     console.log(`[Gemini Proxy] Generating Preview, Mode: ${logicMode}, Size: ${width}x${height}`);
 
-    const result = await callProxy('generatePreview', prompt, [imageBase64], 'grid_story');
+    const result = await callProxy('generatePreview', prompt, [imageBase64], 'grid_scene');
 
     // 메타데이터 빌드
     if (logicMode === 'CINEMATIC') {
