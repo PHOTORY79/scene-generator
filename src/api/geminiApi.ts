@@ -66,7 +66,7 @@ async function compressImage(base64DataUrl: string): Promise<string> {
 }
 
 // 공통 프록시 호출 함수
-async function callProxy(action: string, prompt: string, images: string[], pricingType?: string): Promise<string> {
+async function callProxy(action: string, prompt: string, images: string[], pricingType?: string): Promise<{ imageUrl: string; isFreeGeneration: boolean }> {
     const token = getAuthToken();
 
     if (!token) {
@@ -95,11 +95,13 @@ async function callProxy(action: string, prompt: string, images: string[], prici
     }
 
     // 크레딧 정보 콘솔에 표시
-    if (data.creditCost) {
+    if (data.isFreeGeneration) {
+        console.log(`[Credit] ${action}: 무료 생성 혜택 적용!`);
+    } else if (data.creditCost) {
         console.log(`[Credit] ${action}: -${data.creditCost} (잔액: ${data.creditBalance})`);
     }
 
-    return data.imageUrl;
+    return { imageUrl: data.imageUrl, isFreeGeneration: !!data.isFreeGeneration };
 }
 
 // ── 프롬프트 빌더 (기존과 동일) ──
@@ -316,7 +318,7 @@ export async function generatePreview(
     height: number,
     ratioLabel: string,
     genrePresetId?: string
-): Promise<{ url: string; metadata: any[] }> {
+): Promise<{ url: string; isFreeGeneration: boolean; metadata: any[] }> {
     // 이미지를 base64로 변환
     const imageBase64 = await fileToBase64(referenceImage);
 
@@ -368,12 +370,13 @@ Each of the 9 panels MUST also be in portrait orientation (taller than wide). Fr
 
     console.log(`[Gemini Proxy] Generating Preview, Mode: ${logicMode}, Size: ${width}x${height}`);
 
-    const imageUrl = await callProxy('generatePreview', prompt, [imageBase64], 'grid_story');
+    const result = await callProxy('generatePreview', prompt, [imageBase64], 'grid_story');
 
     // 메타데이터 빌드
     if (logicMode === 'CINEMATIC') {
         return {
-            url: imageUrl,
+            url: result.imageUrl,
+            isFreeGeneration: result.isFreeGeneration,
             metadata: [
                 { cell: 0, shot: 'Extreme Long Shot', angle: 'Eye Level' },
                 { cell: 1, shot: 'Long Shot', angle: 'Eye Level' },
@@ -396,7 +399,7 @@ Each of the 9 panels MUST also be in portrait orientation (taller than wide). Fr
             cell: i, angle: 'AI Generated', shot: 'AI Generated', expression: 'AI Generated'
         }));
 
-    return { url: imageUrl, metadata };
+    return { url: result.imageUrl, isFreeGeneration: result.isFreeGeneration, metadata };
 }
 
 export async function generateFinal(
@@ -420,7 +423,7 @@ export async function generateFinal(
 
     console.log(`[Gemini Proxy] Generating Final`);
 
-    return await callProxy('generateFinal', prompt, [originalBase64, croppedImageBase64], 'upscale');
+    return (await callProxy('generateFinal', prompt, [originalBase64, croppedImageBase64], 'upscale')).imageUrl;
 }
 
 export async function modifyImage(
@@ -455,5 +458,5 @@ export async function modifyImage(
 
     console.log(`[Gemini Proxy] Modifying Image`);
 
-    return await callProxy('modifyImage', prompt, [imageBase64], 'img_edit');
+    return (await callProxy('modifyImage', prompt, [imageBase64], 'img_edit')).imageUrl;
 }

@@ -13,6 +13,7 @@ import { generatePreview, generateFinal, modifyImage } from './api/geminiApi';
 function App() {
   const [state, setState] = useState<SceneGeneratorState>(initialState);
   const [stats, setStats] = useState<UsageStats>({ previewCount: 0, finalCount: 0 });
+  const [showFreeNotice, setShowFreeNotice] = useState(false);
 
   // External Integration Mode (33Grid from Concept Art Editor)
   const [externalMode, setExternalMode] = useState<{
@@ -309,6 +310,12 @@ function App() {
         state.smartLayoutEnabled ? state.selectedGenre : undefined // Pass genre for CINEMATIC mode
       );
 
+      // 무료 생성 알림
+      if (result.isFreeGeneration) {
+        const dismissed = localStorage.getItem('hideGridFreeNotice');
+        if (!dismissed) setShowFreeNotice(true);
+      }
+
       setState(prev => ({
         ...prev,
         isGeneratingPreview: false,
@@ -597,6 +604,42 @@ function App() {
         <h2 className="text-2xl font-bold text-white flex items-center gap-2">
           Select Your Best Shot <span className="text-sm font-normal text-gray-400 bg-gray-800 px-2 py-1 rounded-full">Grid View</span>
         </h2>
+
+        {/* 무료 그리드 생성 알림 */}
+        {showFreeNotice && (
+          <div
+            className="p-4 rounded-lg text-sm relative"
+            style={{
+              background: 'linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(59, 130, 246, 0.15))',
+              border: '1px solid rgba(52, 211, 153, 0.3)',
+            }}
+          >
+            <button
+              onClick={() => setShowFreeNotice(false)}
+              className="absolute top-2 right-2 text-xs text-gray-400 hover:text-white"
+            >✕</button>
+            <div className="flex items-center gap-2 mb-1 font-medium text-white">
+              <span className="text-lg">🎁</span>
+              <span>무료 생성 혜택!</span>
+            </div>
+            <p className="text-xs text-gray-300 mb-2">
+              이번 그리드 생성은 무료로 제공되었습니다. (2회 중 1회 무료)
+            </p>
+            <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer hover:text-gray-200">
+              <input
+                type="checkbox"
+                className="rounded"
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    localStorage.setItem('hideGridFreeNotice', 'true');
+                    setShowFreeNotice(false);
+                  }
+                }}
+              />
+              다시 보지 않기
+            </label>
+          </div>
+        )}
         {/* Applied Variations */}
         <div className="flex flex-wrap gap-2">
           {state.selectedCategories.angle && <span className="px-3 py-1 bg-blue-600/20 border border-blue-500 text-blue-300 text-xs rounded-full">📐 앵글 변경</span>}
